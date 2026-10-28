@@ -1,0 +1,41 @@
+; Engine configuration file.
+; Open this folder in Godot 4.3 or newer (Project Manager > Import > pick this file).
+
+config_version=5
+
+[application]
+
+config/name="PokéPop Defense"
+config/description="Team Rocket is after Ash's Pikachu. Line the route with Pokémon and pop every Pokéball before it reaches him."
+config/version="1.0"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+boot_splash/bg_color=Color(0.0941176, 0.105882, 0.219608, 1)
+boot_splash/show_image=false
+config/icon="res://icon.png"
+config/quit_on_go_back=false
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=684
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+window/handheld/orientation=4
+
+[gui]
+
+theme/default_theme_scale=1.0
+common/drop_mouse_on_gui_input_disabled=true
+
+[input_devices]
+
+pointing/emulate_mouse_from_touch=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+environment/defaults/default_clear_color=Color(0.0941176, 0.105882, 0.219608, 1)
+
