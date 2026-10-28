@@ -610,7 +610,7 @@ const TOWERS={
        {name:'Mega Venusaur',cost:4800,desc:'+2 damage. Petal Blizzard hits every ball in range for 4 every 4s.',fx:s=>{s.dmg+=2;s.blizzard=4;}}],
     B:[{name:'Leech Seed',cost:400,desc:'Seeded balls take 1 damage a second for 4s, and each drain earns ₽1.',fx:s=>{s.seed=true;}},
        {name:'Sleep Powder',cost:900,desc:'Every 5s, puts every ball in range to sleep for 1.2s. Master Balls resist.',fx:s=>{s.powder=5;}},
-       {name:'Solar Beam',cost:3200,desc:'Every 4s, fires a beam across the whole map that deals 12 to every ball it touches.',fx:s=>{s.solar=4;}}]},
+       {name:'Solar Beam',cost:3200,desc:'Every 4s, fires a beam across the whole map, aimed to hit as many balls as possible. 12 damage to every ball it touches.',fx:s=>{s.solar=4;}}]},
   meowth:{name:'Meowth',type:'Normal',cost:400,
     blurb:'Quit Team Rocket. Pay Day earns ₽ at the end of every wave, and it scratches balls that get close.',
     base:{range:72,rate:.7,dmg:1,swipes:1,pay:40,detect:false},
@@ -940,7 +940,19 @@ function updateTower(t,dt){
   }else if(t.kind==='bulbasaur'){
     if(s.blizzard){t.timers.p=(t.timers.p??2)-dt;if(t.timers.p<=0){const v=inRange(t.x,t.y,s.range,s.detect);if(v.length){t.timers.p=s.blizzard;for(const b of v)damage(b,4,t);for(let i=0;i<40;i++){const a=Math.random()*TAU,r=Math.random()*s.range;G.parts.push({x:t.x+Math.cos(a)*r,y:t.y+Math.sin(a)*r,vx:Math.cos(a+1.5)*80,vy:Math.sin(a+1.5)*80,life:.6,max:.6,col:i%2?'#f07a92':'#ffd0dc',size:3});}}else t.timers.p=.25;}}
     if(s.powder){t.timers.s=(t.timers.s??3)-dt;if(t.timers.s<=0){const v=inRange(t.x,t.y,s.range,s.detect,b=>!BALLS[b.type].boss);if(v.length){t.timers.s=s.powder;for(const b of v)if(b.sleepCD<=0){b.sleep=1.2;b.sleepCD=1.8;}for(let i=0;i<24;i++){const a=Math.random()*TAU;G.parts.push({x:t.x,y:t.y-6,vx:Math.cos(a)*s.range*.9,vy:Math.sin(a)*s.range*.9,life:.7,max:.7,col:'#c7f0a0',size:2.6});}}else t.timers.s=.25;}}
-    if(s.solar){t.timers.b=(t.timers.b??2)-dt;if(t.timers.b<=0){const tgt=pickTarget(t);if(tgt){t.timers.b=s.solar;const ang=Math.atan2(tgt.y-t.y,tgt.x-t.x),x2=t.x+Math.cos(ang)*1100,y2=t.y+Math.sin(ang)*1100,seg={x1:t.x,y1:t.y,x2,y2,len:1100};for(const b of G.balls)if(visible(b,true)&&segDist(b.x,b.y,seg)<16+BALLS[b.type].r)damage(b,12,t);G.fx.push({kind:'beam',x1:t.x,y1:t.y-6,x2,y2,life:.35,max:.35});blip(220,.4,'triangle',.05);}else t.timers.b=.25;}}
+    if(s.solar){t.timers.b=(t.timers.b??1)-dt;if(t.timers.b<=0){
+      const vis=G.balls.filter(b=>visible(b,true)&&b.x>-10&&b.x<W+10&&b.y>-10&&b.y<H+10);
+      if(vis.length){
+        t.timers.b=s.solar;
+        const lineTo=a=>({x1:t.x,y1:t.y,x2:t.x+Math.cos(a)*1200,y2:t.y+Math.sin(a)*1200,len:1200});
+        const hitsOn=seg=>vis.filter(b=>segDist(b.x,b.y,seg)<18+BALLS[b.type].r);
+        let best=null,bestN=-1;
+        for(const b of vis.slice(0,60)){const seg=lineTo(Math.atan2(b.y-t.y,b.x-t.x)),n=hitsOn(seg).length;if(n>bestN){bestN=n;best=seg;}}
+        for(const b of hitsOn(best))damage(b,12,t);
+        G.fx.push({kind:'beam',x1:t.x,y1:t.y-6,x2:best.x2,y2:best.y2,life:.6,max:.6});
+        G.fx.push({kind:'text',x:t.x,y:t.y-34,text:'Solar Beam!',col:'#fff4a0',life:1,max:1,big:true});
+        t.face=best.x2<t.x?-1:1;shake=Math.max(shake,4);blip(220,.5,'triangle',.06);
+      }else t.timers.b=.25;}}
     if(t.cd>0)return;
     const tgt=pickTarget(t);if(!tgt)return;
     t.cd=s.rate;t.face=tgt.x<t.x?-1:1;
@@ -1103,6 +1115,7 @@ function render(){
     if(t===G.sel){ell(c,t.x,t.y+15,18,6);c.strokeStyle='#ffd23f';c.lineWidth=2;c.stroke();}
     const pop=Math.min(1,(G.t-t.born)*5);
     drawMon(c,sp,t.x,t.y,.75+.25*pop,t.face<0,G.t+t.id,1,{shades:t.kind==='squirtle'&&t.b>=2,conf:t.conf||0,amulet:t.kind==='meowth'&&t.a>=2});
+    if(t.s.solar&&(t.timers.b??1)<1&&G.running){const k=1-Math.max(0,t.timers.b??1);c.save();c.globalAlpha=.25+.5*k;const g=c.createRadialGradient(t.x,t.y-10,1,t.x,t.y-10,22*k+6);g.addColorStop(0,'#fffbe0');g.addColorStop(1,'rgba(255,236,120,0)');c.fillStyle=g;c.fillRect(t.x-30,t.y-40,60,60);c.restore();}
     if(t.kind==='pikachu'&&t.a>=2&&t.a<3){c.save();c.shadowColor='#fff38a';c.shadowBlur=8;ell(c,t.x+12*(t.face<0?-1:1),t.y+8,3.2,3.2);c.fillStyle='#fff6a8';c.fill();c.restore();}
   }
   // projectiles
@@ -1117,7 +1130,7 @@ function render(){
     if(f.kind==='bolt')drawBolt(c,f.pts,f.col,f.w);
     else if(f.kind==='ring'){const r=f.r+(f.to-f.r)*k;if(f.fill){c.beginPath();c.arc(f.x,f.y,r,0,TAU);c.fillStyle=f.fill+(.35*(1-k))+')';c.fill();}c.beginPath();c.arc(f.x,f.y,r,0,TAU);c.strokeStyle=f.col;c.globalAlpha=1-k;c.lineWidth=f.w||3;c.stroke();c.globalAlpha=1;}
     else if(f.kind==='flash'){c.fillStyle=f.col+(.5*(1-k))+')';c.fillRect(0,0,W,H);}
-    else if(f.kind==='beam'){c.save();c.globalAlpha=1-k;c.lineCap='round';c.strokeStyle='rgba(255,240,140,.5)';c.lineWidth=28*(1-k*.5);c.beginPath();c.moveTo(f.x1,f.y1);c.lineTo(f.x2,f.y2);c.stroke();c.strokeStyle='#fffbe0';c.lineWidth=10*(1-k*.5);c.stroke();c.restore();}
+    else if(f.kind==='beam'){c.save();c.globalAlpha=1-k;c.lineCap='round';c.strokeStyle='rgba(255,236,120,.55)';c.lineWidth=40*(1-k*.5);c.beginPath();c.moveTo(f.x1,f.y1);c.lineTo(f.x2,f.y2);c.stroke();c.strokeStyle='#fffbe0';c.lineWidth=14*(1-k*.5);c.stroke();c.strokeStyle='#ffffff';c.lineWidth=5*(1-k*.5);c.stroke();c.restore();}
     else if(f.kind==='slash'){c.save();c.globalAlpha=1-k;c.strokeStyle='#fff';c.lineWidth=2;c.lineCap='round';for(let i=-1;i<=1;i++){c.beginPath();c.moveTo(f.x-8+i*5,f.y-9);c.lineTo(f.x+6+i*5,f.y+9);c.stroke();}c.restore();}
     else if(f.kind==='psy'){c.save();c.globalAlpha=1-k;c.strokeStyle='#ff7ad9';c.lineWidth=3;c.beginPath();for(let i=0;i<=10;i++){const x=f.x1+(f.x2-f.x1)*i/10,y=f.y1+(f.y2-f.y1)*i/10,o=Math.sin(i*1.6+G.t*30)*4;i?c.lineTo(x+o,y-o):c.moveTo(x,y);}c.stroke();c.beginPath();c.arc(f.x2,f.y2,6+k*12,0,TAU);c.stroke();c.restore();}
     else if(f.kind==='text'){c.save();c.globalAlpha=Math.min(1,f.life/f.max*2);c.font=`800 ${f.big?15:12}px 'Nunito', system-ui, sans-serif`;c.textAlign='center';c.lineWidth=3.5;c.strokeStyle='rgba(16,18,40,.85)';const y=f.y-k*22,x=clamp(f.x,110,W-110);c.strokeText(f.text,x,y);c.fillStyle=f.col;c.fillText(f.text,x,y);c.restore();}

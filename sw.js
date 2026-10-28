@@ -1,6 +1,6 @@
 // Offline support: the game shell is cached on install. Pages load network-first so
 // new versions arrive when online; everything else is served cache-first.
-const VERSION = 'pokepop-v2';
+const VERSION = 'pokepop-v3';
 const SHELL = [
   './',
   './index.html',
