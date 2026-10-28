@@ -23,9 +23,14 @@ Settings → Pages → *Build and deployment* → Source: **Deploy from a branch
 
 Click a Pokémon on the field to open its upgrade menu, which also lists everything it has already learned.
 
+## Godot version
+
+The `godot/` folder has the same game rebuilt in the Godot engine, so it can also be exported as an Android app or a Windows, Mac or Linux program. GitHub builds all of those automatically: open the **Actions** tab, pick the newest **Build Godot game** run, and download from **Artifacts**. To open or change it in Godot yourself, see [godot/README.md](godot/README.md).
+
 ## Files
 
 - `index.html`: the whole game (HTML, CSS and JavaScript, no build step)
 - `manifest.webmanifest`, `sw.js`, `icons/`: what makes it installable and offline-capable
+- `godot/`: the Godot version (see its README)
 
 All art is drawn in code; no official sprites are used.
