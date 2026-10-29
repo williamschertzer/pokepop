@@ -366,4 +366,3 @@ func _draw_world() -> void:
 			ci.draw_rect(Rect2(0, 0, W, H), Color(1, 40 / 255.0, 40 / 255.0, .25 * f.life / f.max))
 	if g.paused:
 		ci.draw_rect(Rect2(0, 0, W, H), Color(10 / 255.0, 12 / 255.0, 30 / 255.0, .5))
-		text(ci, "PAUSED", W / 2, H / 2, 44, Color.WHITE, true)

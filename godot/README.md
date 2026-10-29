@@ -55,25 +55,8 @@ To publish on the Google Play Store you would also need a "release keystore" and
 
 ## How to play
 
-The same as the web version. Pick a map, click a Pokémon in the Party panel (or press keys 1 to 8), then click next to the path to place it. Press **Start wave** (or **Space**). Click a Pokémon on the field to open its upgrade panel. **F** changes speed, **P** pauses and **Esc** cancels. On a phone or tablet, tap a spot once to preview and tap it again to place.
+The game opens on a title screen. **Continue** picks up your last game, **New game** takes you to the map picker, and **Settings** has the sound volume and an option to ask before releasing a Pokémon.
 
-Your best wave on each map and the sound setting are saved on the device.
+Pick a map, then drag a Pokémon from the Party panel onto the map (or click it, or press keys 1 to 8, then click the map). The panel at the top right shows which balls the next wave brings. Press **Start wave** (or **Space**). Click a Pokémon on the field to open its upgrade panel; hovering an upgrade shows how its numbers change. **F** changes speed, **P** pauses, and **Esc** cancels or opens the pause menu (restart, change map, settings, main menu). On a phone or tablet you can also tap a spot once to preview and tap it again to place.
 
-## What's in this folder
-
-| File | What it does |
-| --- | --- |
-| `project.godot` | Godot project settings (screen size, renderer, landscape on phones) |
-| `export_presets.cfg` | The ready-made Web, Android, Windows, macOS and Linux export settings |
-| `scenes/main.tscn` | The one scene Godot starts |
-| `scripts/main.gd` | All the screens: header, party shop, upgrade panel, map picker, end screen |
-| `scripts/stage.gd` | Draws the game field and handles clicks and taps on it |
-| `scripts/game.gd` | The rules: balls, towers, attacks, waves, money and lives |
-| `scripts/data.gd` | Numbers for every Pokéball, Pokémon, upgrade, map and wave |
-| `scripts/art.gd` | The drawings of every Pokémon and Pokéball |
-| `scripts/mapart.gd` | Map paths, trees, graves, rocks and the painted backgrounds |
-| `scripts/pen.gd` | A small drawing helper that works like the web version's canvas |
-| `scripts/sfx.gd` | The retro sound effects, made in code |
-| `fonts/` | Pixelify Sans and Nunito (free fonts under the SIL Open Font License) |
-
-To change a number, such as a Pokémon's cost or an upgrade's damage, edit `scripts/data.gd` and press Play again.
+The game saves itself between waves, so you can close it and choose **Continue** later. If you close it in the middle of a wave, you start again from the beginning of that wave. Your best wave on each map and your settings are saved on the device too.
