@@ -250,7 +250,7 @@ func _ready() -> void:
 	add_child(sfx)
 	sfx.muted = _muted
 	game.best = _best
-	_seen_best = _best_any()
+	_seen_unlocked = _unlocked_now()
 	game.toast.connect(_show_toast)
 	game.sfx.connect(func(f, d, ty, v): sfx.blip(f, d, ty, v))
 	game.ended.connect(_show_end)
@@ -293,7 +293,7 @@ var _confirm_release := true
 var _run := {}  # the saved run for Continue, empty when there is none
 var _diff := "normal"
 var _unlock_all := false
-var _seen_best := 0  # best wave already announced, to spot new unlocks
+var _seen_unlocked := []  # Pokémon already unlocked, to announce new ones
 
 
 func _load_save() -> void:
@@ -321,16 +321,21 @@ func _save() -> void:
 	cf.save(SAVE_PATH)
 
 
-## The furthest wave reached on any map, at any difficulty.
-func _best_any() -> int:
-	var m := 0
-	for k in game.best:
-		m = maxi(m, int(game.best[k]))
-	return m
-
-
 func _unlocked(k: String) -> bool:
-	return _unlock_all or not Data.UNLOCK.has(k) or _best_any() >= Data.UNLOCK[k]
+	return _unlock_all or Data.is_unlocked(k, game.best)
+
+
+func _unlocked_now() -> Array:
+	return Data.UNLOCK.keys().filter(func(k): return Data.is_unlocked(k, game.best))
+
+
+## "Locked. Beat 2 different maps on Normal or Hard (1 so far)."
+func _lock_text(k: String) -> String:
+	var r := Data.unlock_req(k)
+	var t := "Locked. %s to unlock %s." % [Data.unlock_text(k), Data.TOWERS[k].name]
+	if r.maps > 1:
+		t = t.trim_suffix(".") + " (%d so far)." % Data.unlock_progress(k, game.best)
+	return t
 
 
 func _apply_volume() -> void:
@@ -349,12 +354,12 @@ func _save_run() -> void:
 
 func _on_wave_cleared() -> void:
 	_save_run()
-	var now := _best_any()
-	for k in Data.UNLOCK:
-		if not _unlock_all and Data.UNLOCK[k] > _seen_best and Data.UNLOCK[k] <= now:
+	var now := _unlocked_now()
+	for k in now:
+		if not _unlock_all and not _seen_unlocked.has(k):
 			_show_toast("New Pokémon unlocked: %s! Find it in your Party." % Data.TOWERS[k].name)
 			_render_shop()
-	_seen_best = now
+	_seen_unlocked = now
 
 
 func _clear_run() -> void:
@@ -901,7 +906,7 @@ func _open_dex() -> void:
 	var tl := _lbl("Pokédex", 30, TEXT, f_disp_b)
 	top.add_child(tl)
 	_dex_box.add_child(top)
-	_dex_box.add_child(_lbl("Every Pokémon you can bring and every ball Team Rocket throws. New Pokémon unlock as you reach later waves on any map.", 14, MUTED, f_light, true))
+	_dex_box.add_child(_lbl("Every Pokémon you can bring and every ball Team Rocket throws. New Pokémon unlock as you beat later waves and more maps on Normal or Hard.", 14, MUTED, f_light, true))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 12)
@@ -964,7 +969,7 @@ func _dex_card(k: String) -> Control:
 	head.add_child(hv)
 	v.add_child(head)
 	if locked:
-		v.add_child(_lbl("Locked. Reach wave %d on any map to unlock it." % Data.UNLOCK[k], 12.5, GOLD, f_light, true))
+		v.add_child(_lbl(_lock_text(k), 12.5, GOLD, f_light, true))
 	var bl := _lbl(d.blurb, 12.5, MUTED, f_light, true)
 	bl.custom_minimum_size.x = 480
 	v.add_child(bl)
@@ -1052,7 +1057,7 @@ func _build_settings() -> void:
 	reset.add_theme_stylebox_override("hover", _sb(Color(0, 0, 0, 0), 10, 10, 2, BAD))
 	_two_tap(reset, "Tap again to erase your progress", func():
 		game.best = {}
-		_seen_best = 0
+		_seen_unlocked = []
 		_run = {}
 		_save()
 		if _title.visible:
@@ -1371,7 +1376,7 @@ func _render_shop() -> void:
 		var key_txt := " (key %d)" % ((i + 1) % 10) if i < 10 else ""
 		b.tooltip_text = "%s, %s type%s. %s: %s" % [d.name, d.type, key_txt, d.role, d.blurb]
 		if locked:
-			b.tooltip_text = "Locked. Reach wave %d on any map to unlock %s." % [Data.UNLOCK[k], d.name]
+			b.tooltip_text = _lock_text(k)
 		var sel := stage.placing == k
 		var n := _sb(PANEL2, 11, 0, 2, GOLD if sel else Color(0, 0, 0, 0))
 		var h := _sb(Color("#363e78"), 11, 0, 2, GOLD if sel else Color(0, 0, 0, 0))
@@ -1395,7 +1400,7 @@ func _render_shop() -> void:
 		nl.clip_text = true
 		nl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		v.add_child(nl)
-		var cl := _lbl("₽%d" % d.cost if not locked else "Wave %d" % Data.UNLOCK[k], 11, GOLD if not locked else MUTED, f_bold)
+		var cl := _lbl("₽%d" % d.cost if not locked else Data.unlock_short(k), 11, GOLD if not locked else MUTED, f_bold)
 		cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(cl)
 		b.add_child(v)
@@ -1410,7 +1415,7 @@ func _select_kind(k: String) -> void:
 	if game.map == null:
 		return
 	if not _unlocked(k):
-		_show_toast("Reach wave %d on any map to unlock %s." % [Data.UNLOCK[k], Data.TOWERS[k].name])
+		_show_toast(_lock_text(k).trim_prefix("Locked. "))
 		return
 	stage.placing = "" if stage.placing == k else k
 	stage.selected = null
@@ -1745,7 +1750,7 @@ func _preview_upgrade(tw, p: String) -> void:
 	var cur := _stats_for(tw.kind, tw.s)
 	var nxt := cur
 	if p != "":
-		nxt = _stats_for(tw.kind, Data.compute_stats(tw.kind, tw.a + int(p == "a"), tw.b + int(p == "b")))
+		nxt = _stats_for(tw.kind, game.stats_with_buffs(tw, tw.a + int(p == "a"), tw.b + int(p == "b")))
 	for i in mini(_stat_labels.size(), cur.size()):
 		var l: Label = _stat_labels[i]
 		if not is_instance_valid(l):

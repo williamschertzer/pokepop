@@ -70,6 +70,14 @@ jobs:
           sed -i "s|^export/android/java_sdk_path = .*|export/android/java_sdk_path = \"${JAVA_HOME}\"|" "$S"
           grep "^export/android/" "$S"
 
+      - name: Check scripts and game rules
+        run: |
+          set -o pipefail
+          godot --headless -s tests/check_upgrades.gd 2>&1 | tee check.log
+          grep -q "check_upgrades: OK" check.log
+          godot --headless --quit-after 300 2>&1 | tee smoke.log
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script" check.log smoke.log; then exit 1; fi
+
       - name: Export
         run: |
           mkdir -p build/web build/windows build/macos build/linux build/android

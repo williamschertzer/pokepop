@@ -45,8 +45,60 @@ const ITEMS := {
 	"candy": {"short": "Candy", "name": "Rare Candy", "cost": 300, "step": 0, "desc": "Your next upgrade costs 30% less."},
 }
 
-## New Pokémon unlock when you reach this wave on any map.
-const UNLOCK := {"magikarp": 5, "pidgey": 10, "geodude": 15, "machop": 20, "abra": 25, "lapras": 30, "snorlax": 35, "dratini": 40}
+## New Pokémon unlock by reaching a wave on enough different maps, on Normal
+## or harder ("diff": "hard" means Hard only). Easy runs never unlock anything.
+## A plain number means {"wave": n}.
+const UNLOCK := {
+	"magikarp": {"wave": 15},
+	"pidgey": {"wave": 25},
+	"geodude": {"wave": 40},
+	"machop": {"wave": 40, "maps": 2},
+	"lapras": {"wave": 40, "diff": "hard"},
+	"abra": {"wave": 40, "maps": 3},
+	"snorlax": {"wave": 40, "maps": 4},
+	"dratini": {"wave": 40, "maps": 3, "diff": "hard"},
+}
+const DIFF_RANK := {"easy": 0, "normal": 1, "hard": 2}
+
+
+static func unlock_req(kind: String) -> Dictionary:
+	var r = UNLOCK[kind]
+	if r is int:
+		r = {"wave": r}
+	return {"wave": int(r.wave), "maps": int(r.get("maps", 1)), "diff": r.get("diff", "normal")}
+
+
+## How many different maps already meet this Pokémon's unlock goal.
+static func unlock_progress(kind: String, best: Dictionary) -> int:
+	var r := unlock_req(kind)
+	var maps := {}
+	for key in best:
+		var parts: PackedStringArray = String(key).split(":")
+		var diff: String = parts[1] if parts.size() > 1 else "normal"
+		if DIFF_RANK.get(diff, 0) >= DIFF_RANK[r.diff] and int(best[key]) >= r.wave:
+			maps[parts[0]] = true
+	return maps.size()
+
+
+static func is_unlocked(kind: String, best: Dictionary) -> bool:
+	return not UNLOCK.has(kind) or unlock_progress(kind, best) >= unlock_req(kind).maps
+
+
+## "Beat 2 maps on Hard", "Reach wave 25 on any map" and so on.
+static func unlock_text(kind: String) -> String:
+	var r := unlock_req(kind)
+	var on: String = " on Hard" if r.diff == "hard" else " on Normal or Hard"
+	var goal: String = ("Beat " if r.wave >= 40 else "Reach wave %d on " % r.wave)
+	var where: String = ("any map" if r.wave < 40 else "a map") if r.maps == 1 else "%d different maps" % r.maps
+	return goal + where + on
+
+
+## A few characters for the Party button.
+static func unlock_short(kind: String) -> String:
+	var r := unlock_req(kind)
+	if r.wave < 40:
+		return "Wave %d" % r.wave
+	return ("Hard ×%d" if r.diff == "hard" else "Win ×%d") % r.maps
 
 ## Upgrade effects are lists of [op, stat, value]: "+" adds, "*" multiplies, "=" sets.
 const TOWERS := {
@@ -374,12 +426,31 @@ static func compute_stats(kind: String, a: int, b: int) -> Dictionary:
 	return s
 
 
+## Stats where a smaller number is stronger: attack delay, slow factors and
+## cooldowns. For cooldowns 0 means the move isn't learned yet.
+const LOWER_BETTER := ["rate", "confuse", "recover", "shadowTag", "gmax", "blast", "hydro", "blizzard",
+	"powder", "solar", "goldRush", "encore", "psystrike", "future", "bounce", "hurricane", "explode",
+	"quake", "chi", "trick", "gfreeze", "surf", "cold", "slam", "yawn", "outrage", "hyper"]
+
+
+## "=" never makes a stat worse, so evolutions and moves stack in any order
+## and nothing you buy can undo something you already bought.
 static func _apply(s: Dictionary, fx: Array) -> void:
 	for e in fx:
+		var st: String = e[1]
 		match e[0]:
-			"+": s[e[1]] += e[2]
-			"*": s[e[1]] *= e[2]
-			"=": s[e[1]] = e[2]
+			"+": s[st] += e[2]
+			"*": s[st] *= e[2]
+			"=":
+				var v = e[2]
+				var cur = s[st]
+				if v is bool or cur is bool:
+					s[st] = v
+				elif st in LOWER_BETTER:
+					if cur == 0 or v < cur:
+						s[st] = v
+				elif v > cur:
+					s[st] = v
 
 
 static func sprite_for(kind: String, a: int) -> String:

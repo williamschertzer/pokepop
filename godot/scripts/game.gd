@@ -398,36 +398,43 @@ func _init_tower(tw: Tower) -> void:
 
 ## Recomputes every Pokémon's stats, adding Abra-line auras and Dragon Dance.
 func refresh_buffs() -> void:
-	var abras := towers.filter(func(o): return o.kind == "abra")
 	for tw in towers:
-		var s := Data.compute_stats(tw.kind, tw.a, tw.b)
-		tw.buffed = false
-		if tw.kind != "abra":
-			var rate_k := 1.0
-			var dmg_k := 0
-			var range_k := 1.0
-			var det := false
-			for ab in abras:
-				var as_: Dictionary = Data.compute_stats("abra", ab.a, ab.b)
-				if Vector2(ab.x - tw.x, ab.y - tw.y).length() > as_.range:
-					continue
-				rate_k = maxf(rate_k, as_.auraRate)
-				dmg_k = maxi(dmg_k, int(as_.auraDmg))
-				range_k = maxf(range_k, as_.auraRange)
-				det = det or as_.auraDetect
-			if rate_k > 1 or dmg_k > 0 or range_k > 1 or det:
-				tw.buffed = true
-				if s.rate:
-					s.rate /= rate_k
-				if s.dmg > 0:
-					s.dmg += dmg_k
-				if s.counter > 0:
-					s.counter += dmg_k
-				s.range *= range_k
-				s.detect = s.detect or det
-		if s.dance:
-			s.rate /= 1 + minf(.6, .1 * tw.danced)
-		tw.s = s
+		tw.s = stats_with_buffs(tw, tw.a, tw.b)
+		tw.buffed = tw.s.get("_buffed", false)
+
+
+## A Pokémon's stats at upgrade tiers a/b, with nearby auras and Dragon Dance
+## included, so upgrade previews compare like with like.
+func stats_with_buffs(tw: Tower, a: int, b: int) -> Dictionary:
+	var s := Data.compute_stats(tw.kind, a, b)
+	if tw.kind != "abra":
+		var rate_k := 1.0
+		var dmg_k := 0
+		var range_k := 1.0
+		var det := false
+		for ab in towers:
+			if ab.kind != "abra":
+				continue
+			var as_: Dictionary = Data.compute_stats("abra", ab.a, ab.b)
+			if Vector2(ab.x - tw.x, ab.y - tw.y).length() > as_.range:
+				continue
+			rate_k = maxf(rate_k, as_.auraRate)
+			dmg_k = maxi(dmg_k, int(as_.auraDmg))
+			range_k = maxf(range_k, as_.auraRange)
+			det = det or as_.auraDetect
+		if rate_k > 1 or dmg_k > 0 or range_k > 1 or det:
+			s["_buffed"] = true
+			if s.rate:
+				s.rate /= rate_k
+			if s.dmg > 0:
+				s.dmg += dmg_k
+			if s.counter > 0:
+				s.counter += dmg_k
+			s.range *= range_k
+			s.detect = s.detect or det
+	if s.dance:
+		s.rate /= 1 + minf(.6, .1 * tw.danced)
+	return s
 
 
 ## Returns whether the upgrade on path "a" or "b" can be bought at all (ignoring money).
