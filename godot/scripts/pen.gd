@@ -400,6 +400,43 @@ func fs(f, s = OUT, w := 1.4) -> void:
 		stroke(s, w)
 
 
+## Fills the strip of the current path that would be uncovered if the path
+## moved by (dx, dy) on screen: a crescent along the opposite edge.
+func rim(colv, dx: float, dy: float) -> void:
+	_flush()
+	var col: Color = colv if colv is Color else Color(colv)
+	col.a *= alpha
+	if col.a <= 0.0:
+		return
+	var off := Vector2(dx, dy) * _xs()
+	for s in _subs:
+		if s.size() < 3:
+			continue
+		var p := _clean(s)
+		if p.size() < 3:
+			continue
+		var moved := Transform2D(0.0, off) * p
+		for q in Geometry2D.clip_polygons(p, moved):
+			if clip_poly.size() >= 3:
+				for r in Geometry2D.intersect_polygons(q, clip_poly):
+					_tri(r, col)
+			else:
+				_tri(q, col)
+
+
+## Shaded fill: base colour, a shadow along the lower right, a soft light along
+## the upper left, then the outline.
+func sh(f, s = OUT, w := 1.4, depth := 1.0) -> void:
+	var col: Color = f if f is Color else Color(f)
+	fill(col)
+	rim(col.darkened(.2), -1.6 * depth, -2.0 * depth)
+	var hl := col.lightened(.32)
+	hl.a = .8
+	rim(hl, 1.0 * depth, 1.2 * depth)
+	if s != null:
+		stroke(s, w)
+
+
 ## Fills the current (convex) path with a two-colour radial gradient centred at (cx, cy).
 func fill_fan(cx: float, cy: float, r: float, c0: Color, c1: Color) -> void:
 	_flush()
