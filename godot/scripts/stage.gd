@@ -19,6 +19,8 @@ var selected = null  # Game.Tower or null
 var _bg_layer: Control
 var _fx_layer: Control
 var _last_touch := -10000
+var _last_cd := {}  # tower id -> cooldown last frame, to spot when it attacks
+var _kick := {}  # tower id -> attack animation time left
 
 
 func _init() -> void:
@@ -171,6 +173,44 @@ static func glow(ci: CanvasItem, c: Vector2, r: float, col: Color) -> void:
 
 
 # ---------- drawing ----------
+## Small moving touches that make each map feel alive. Purely visual.
+func _draw_ambience(ci: CanvasItem, theme: String, gt: float) -> void:
+	match theme:
+		"route":
+			for i in 4:
+				var x := fposmod(gt * 22 + i * 260, W + 80) - 40
+				var y := 80 + i * 130 + sin(gt * 1.3 + i * 2) * 30
+				var flap := absf(sin(gt * 14 + i)) * 4 + 1
+				var col: Color = [Color("#fff6a8"), Color("#ffffff"), Color("#ffc0e0"), Color("#c0e8ff")][i]
+				fill_ell(ci, x - 3, y, 3, flap, col)
+				fill_ell(ci, x + 3, y, 3, flap, col)
+		"forest":
+			for i in 14:
+				var x := fposmod(i * 173.0 + sin(gt * .3 + i) * 40, W)
+				var y := fposmod(i * 97.0 + cos(gt * .25 + i * 1.7) * 30, H)
+				var a := .25 + .35 * maxf(0, sin(gt * 1.6 + i * 2.3))
+				glow(ci, Vector2(x, y), 10, Color(.85, 1, .4, a))
+				ci.draw_circle(Vector2(x, y), 1.5, Color(1, 1, .7, a + .2))
+		"lavender":
+			for i in 6:
+				var x := fmod(gt * 12 + i * 190, W + 300) - 150
+				var y := 90 + i * 85 + sin(gt * .4 + i) * 20
+				glow(ci, Vector2(x, y), 150, Color(230 / 255.0, 220 / 255.0, 1, .16))
+			for i in 4:
+				var x := fposmod(i * 251.0 + gt * 9, W)
+				var y := fposmod(H - gt * 14 - i * 150, H)
+				glow(ci, Vector2(x, y), 9, Color(.75, .6, 1, .45))
+		"cave":
+			for i in 12:
+				var x := fposmod(i * 211.0 + 37, W)
+				var y := fposmod(i * 131.0 + 53, H)
+				var a := maxf(0, sin(gt * 2 + i * 1.9))
+				if a > .6:
+					var r := 4 * (a - .6) / .4 + 1
+					ci.draw_line(Vector2(x - r * 2, y), Vector2(x + r * 2, y), Color(.8, .9, 1, a), 1.2, true)
+					ci.draw_line(Vector2(x, y - r * 2), Vector2(x, y + r * 2), Color(.8, .9, 1, a), 1.2, true)
+
+
 func _draw_bg() -> void:
 	var ci := _bg_layer
 	if game and game.map:
@@ -213,18 +253,37 @@ func _draw_world() -> void:
 	ci.draw_circle(sp, 15, Color("#1d1d24"))
 	ci.draw_arc(sp, 15, 0, TAU, 40, Color("#e2262b"), 3, true)
 	text(ci, "R", sp.x, sp.y + 1, 18, Color("#e2262b"), true)
+	# Geodude's rocks on the path
+	for rk in g.traps:
+		var k := clampf(rk.uses / 6.0, .55, 1.0)
+		var pts := PackedVector2Array()
+		for i in 6:
+			var a: float = rk.rot + i * TAU / 6
+			pts.append(Vector2(rk.x + cos(a) * 6 * k * (1.0 if i % 2 else .8), rk.y + sin(a) * 5 * k))
+		ci.draw_colored_polygon(pts, Color("#8c8476"))
+		pts.append(pts[0])
+		ci.draw_polyline(pts, Color("#3a342c"), 1.2, true)
 	# balls
 	for b in g.balls:
 		var def: Dictionary = b.def
 		var r: float = def.r
 		fill_ell(ci, b.x, b.y + r * .85, r * .8, r * .28, Color(0, 0, 0, .22))
-		var rot: float = sin(b.wob) * (.05 if b.sleep > 0 else (.06 if b.type == "rocket" else .28))
+		# balls roll along the path; the balloon just sways
+		var rot: float = sin(b.wob) * .06 if b.type == "rocket" else b.d / r
 		var al := 1.0
 		if def.get("hidden", false):
 			al = .55 + .15 * sin(gt * 4 + b.id)
 		Art.put_ball(ci, b.type, b.x, b.y, rot, 1.0, al)
 		if b.sleep > 0:
 			text(ci, "z", b.x + r * .6, b.y - r - fmod(gt * 20, 8) - 4, 11, Color.WHITE, true)
+		if b.freeze > 0:
+			ci.draw_circle(Vector2(b.x, b.y), r + 3, Color(.75, .95, 1, .5))
+			ci.draw_arc(Vector2(b.x, b.y), r + 3, 0, TAU, 24, Color(.9, 1, 1, .9), 1.5, true)
+			ci.draw_line(Vector2(b.x - r * .4, b.y - r * .5), Vector2(b.x - r * .1, b.y - r * .2), Color.WHITE, 1.5)
+		if b.broken:
+			ci.draw_polyline(PackedVector2Array([Vector2(b.x - 4, b.y - r + 2), Vector2(b.x, b.y - 4), Vector2(b.x - 2, b.y + 2), Vector2(b.x + 3, b.y + r - 3)]), Color("#16161a"), 1.4)
+		if b.def.get("regen", false) and b.hp < b.max_hp:
+			ci.draw_arc(Vector2(b.x, b.y), r + 4, -PI / 2, -PI / 2 + TAU * b.hp / b.max_hp, 24, Color("#ff8ab4"), 2, true)
 		if b.burn and randf() < .5:
 			g.parts.append({"x": b.x + (randf() - .5) * r, "y": b.y, "vx": 0.0, "vy": -40.0, "life": .25, "max": .25, "col": Color("#ff8a1f"), "size": 2.0})
 		if def.get("boss", false):
@@ -254,7 +313,40 @@ func _draw_world() -> void:
 			stroke_ell(ci, tw.x, tw.y + 15, 18, 6, Color("#ffd23f"), 2)
 		var pop := minf(1, (gt - tw.born) * 5)
 		var opt := {"shades": tw.kind == "squirtle" and tw.b >= 2, "conf": tw.conf, "amulet": tw.kind == "meowth" and tw.a >= 2}
-		Art.put_mon(ci, spn, tw.x, tw.y, .75 + .25 * pop, tw.face < 0, gt + tw.id, 1, opt)
+		# a little hop forward each time it attacks
+		var last: float = _last_cd.get(tw.id, 0.0)
+		if tw.cd > last + .05:
+			_kick[tw.id] = .16
+		_last_cd[tw.id] = tw.cd
+		var kick: float = _kick.get(tw.id, 0.0)
+		if kick > 0:
+			_kick[tw.id] = kick - get_process_delta_time() * g.speed
+		var kk := sin(clampf(kick / .16, 0, 1) * PI)
+		var px: float = tw.x + tw.face * 4 * kk
+		var py: float = tw.y - 2 * kk
+		if tw.rush > 0 or tw.outr > 0:
+			glow(ci, Vector2(tw.x, tw.y - 4), 26, Color(1, .45, .25, .35) if tw.rush > 0 else Color(.7, .5, 1, .4))
+		if tw.buffed:
+			glow(ci, Vector2(tw.x, tw.y + 12), 14, Color(1, .55, .85, .35 + .1 * sin(gt * 3 + tw.id)))
+		if tw.kind == "snorlax" and tw.down > 0:
+			Art.put_mon(ci, spn, px + 20, py + 4, .85, tw.face < 0, gt + tw.id, .75, opt)
+			text(ci, "Z", px + 30, py - 24 - fmod(gt * 14, 10), 12, Color.WHITE, true, 3, Color(0, 0, 0, .5))
+		else:
+			var breath := 1 + .025 * sin(gt * 3 + tw.id)
+			var sc := (.75 + .25 * pop) * (1 + .06 * kk)
+			# breathing: stretch a touch taller, keeping the feet on the ground
+			ci.draw_set_transform(Vector2(px, py + 18 * sc * (1 - breath)), 0, Vector2(-sc if tw.face < 0 else sc, sc * breath))
+			Pen.draw_baked(ci, Art.mon(spn, gt + tw.id, opt))
+			ci.draw_set_transform_matrix(Transform2D.IDENTITY)
+		if tw.kind == "snorlax" and tw.down <= 0 and tw.hold < tw.s.hold:
+			var w := 30.0
+			ci.draw_rect(Rect2(tw.x - w / 2, tw.y + 22, w, 4), Color(0, 0, 0, .55))
+			ci.draw_rect(Rect2(tw.x - w / 2, tw.y + 22, w * clampf(tw.hold / tw.s.hold, 0, 1), 4), Color("#7be3a2"))
+		# upgrade pips: gold for the first path, blue for the second
+		for i in tw.a:
+			ci.draw_circle(Vector2(tw.x - 12 + i * 5, tw.y + 21), 1.8, Color("#ffd23f"))
+		for i in tw.b:
+			ci.draw_circle(Vector2(tw.x + 2 + i * 5, tw.y + 21), 1.8, Color("#7fb6ff"))
 		if tw.s.solar and tw.timers.get("b", 1.0) < 1 and g.running:
 			var k := 1.0 - maxf(0, tw.timers.get("b", 1.0))
 			glow(ci, Vector2(tw.x, tw.y - 10), 22 * k + 6, Color(1, 248 / 255.0, 200 / 255.0, .25 + .5 * k))
@@ -280,6 +372,13 @@ func _draw_world() -> void:
 				ci.draw_set_transform_matrix(Transform2D.IDENTITY)
 			"coin":
 				Art.coin(ci, p.x, p.y, 5, p.ph)
+			"rock":
+				var rp := PackedVector2Array([Vector2(-5, -3), Vector2(0, -6), Vector2(5, -2), Vector2(4, 4), Vector2(-3, 5)])
+				ci.draw_set_transform(Vector2(p.x, p.y), p.rot, Vector2.ONE)
+				ci.draw_colored_polygon(rp, Color("#8c8476"))
+				rp.append(rp[0])
+				ci.draw_polyline(rp, Color("#3a342c"), 1.2, true)
+				ci.draw_set_transform_matrix(Transform2D.IDENTITY)
 			_:
 				var r := 8.0 if p.big else 6.0
 				glow(ci, Vector2(p.x, p.y), r * 2.2, Color(176 / 255.0, 122 / 255.0, 1, .5))
@@ -305,11 +404,46 @@ func _draw_world() -> void:
 				var col: Color = f.col
 				col.a = .5 * (1 - k)
 				ci.draw_rect(Rect2(0, 0, W, H), col)
+			"gust", "jet", "ice", "dragon":
+				var col: Color = f.get("col", Color.WHITE)
+				var w: float = f.get("w", 3.0)
+				if f.kind == "ice":
+					col = Color("#c8f4ff")
+				elif f.kind == "dragon":
+					col = Color("#a98aff")
+					w = 4.0
+				col.a = 1 - k
+				var p1 := Vector2(f.x1, f.y1)
+				var p2 := Vector2(f.x2, f.y2)
+				if f.kind == "gust":
+					var dir := (p2 - p1).normalized()
+					var nrm := Vector2(-dir.y, dir.x)
+					for o in [-1, 0, 1]:
+						var line := PackedVector2Array()
+						for i in 9:
+							var q := p1.lerp(p2, i / 8.0)
+							line.append(q + nrm * (o * 4 + sin(i * 1.3 + gt * 40) * 2))
+						ci.draw_polyline(line, col, w * (1.0 if o == 0 else .5), true)
+				else:
+					var c1 := col
+					c1.a *= .35
+					ci.draw_line(p1, p2, c1, w + 4, true)
+					ci.draw_line(p1, p2, col, w, true)
+					ci.draw_line(p1, p2, Color(1, 1, 1, col.a), maxf(1, w * .35), true)
+				if f.kind == "dragon":
+					glow(ci, p2, 12 * (1 - k) + 4, Color(.66, .54, 1, .6 * (1 - k)))
+			"punch":
+				var col := Color(1, .6, .3, 1 - k)
+				ci.draw_arc(Vector2(f.x, f.y), 6 + k * 12, 0, TAU, 20, col, 3, true)
+				for i in 6:
+					var a := i * TAU / 6
+					ci.draw_line(Vector2(f.x, f.y) + Vector2.from_angle(a) * (8 + k * 8), Vector2(f.x, f.y) + Vector2.from_angle(a) * (12 + k * 12), col, 2, true)
 			"beam":
 				var a := 1 - k
 				var p1 := Vector2(f.x1, f.y1)
 				var p2 := Vector2(f.x2, f.y2)
-				for layer in [[40.0, Color(1, 236 / 255.0, 120 / 255.0, .55)], [14.0, Color("#fffbe0")], [5.0, Color.WHITE]]:
+				var tint: Color = f.get("tint", Color(1, 236 / 255.0, 120 / 255.0))
+				for layer in [[40.0, Color(tint, .55)], [14.0, tint.lightened(.7)], [5.0, Color.WHITE]]:
 					var w: float = layer[0] * (1 - k * .5)
 					var col: Color = layer[1]
 					col.a *= a
@@ -342,7 +476,12 @@ func _draw_world() -> void:
 		var col: Color = p.col
 		col.a = a
 		var s: float = p.size * (1.6 - a) if p.get("grow", false) else p.size
-		ci.draw_rect(Rect2(p.x - s / 2, p.y - s / 2, s, s), col)
+		if p.get("shard", false):
+			# a curved piece of a popped Pokéball's shell, tumbling as it flies
+			var rot: float = (p.x + p.y) * .08 + a * 6
+			ci.draw_arc(Vector2(p.x, p.y), s * 1.4, rot, rot + 2.2, 6, col, s * .9, true)
+		else:
+			ci.draw_rect(Rect2(p.x - s / 2, p.y - s / 2, s, s), col)
 	for c in g.coins:
 		Art.coin(ci, c.x, c.y, 5.5, c.ph, minf(1, c.life * 2))
 	for m in g.marks:
@@ -354,13 +493,12 @@ func _draw_world() -> void:
 	# placement preview
 	if placing != "" and ghost != null:
 		var valid = g.can_place(placing, ghost.x, ghost.y) and g.money >= Data.TOWERS[placing].cost
-		_show_range(ci, ghost.x, ghost.y, Data.TOWERS[placing].base.range, valid)
-		Art.put_mon(ci, Data.sprite_for(placing, 0), ghost.x, ghost.y, 1, false, gt, .7)
-	if g.map.theme == "lavender":
-		for i in 6:
-			var x := fmod(gt * 12 + i * 190, W + 300) - 150
-			var y := 90 + i * 85 + sin(gt * .4 + i) * 20
-			glow(ci, Vector2(x, y), 150, Color(230 / 255.0, 220 / 255.0, 1, .16))
+		var gp: Vector2 = ghost
+		if Data.TOWERS[placing].get("onPath", false) and valid:
+			gp = MapArt.pos_at(g.path, g.path_d(ghost.x, ghost.y))
+		_show_range(ci, gp.x, gp.y, Data.TOWERS[placing].base.range, valid)
+		Art.put_mon(ci, Data.sprite_for(placing, 0), gp.x, gp.y, 1, false, gt, .7)
+	_draw_ambience(ci, g.map.theme, gt)
 	for f in g.fx:
 		if f.kind == "leak":
 			ci.draw_rect(Rect2(0, 0, W, H), Color(1, 40 / 255.0, 40 / 255.0, .25 * f.life / f.max))

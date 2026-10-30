@@ -17,6 +17,14 @@ const SPRITE_INFO := {
 	"meowth": {"name": "Meowth", "scale": .88}, "persian": {"name": "Persian", "scale": .94}, "wobbuffet": {"name": "Wobbuffet", "scale": .9},
 	"mewtwo": {"name": "Mewtwo", "scale": .98}, "armormewtwo": {"name": "Armored Mewtwo", "scale": 1.0}, "megamewtwo": {"name": "Mega Mewtwo Y", "scale": 1.04},
 	"ashpika": {"name": "Ash's Pikachu", "scale": .95},
+	"magikarp": {"name": "Magikarp", "scale": .9}, "gyarados": {"name": "Gyarados", "scale": 1.0}, "megagyarados": {"name": "Mega Gyarados", "scale": 1.06},
+	"pidgey": {"name": "Pidgey", "scale": .86}, "pidgeotto": {"name": "Pidgeotto", "scale": .92}, "pidgeot": {"name": "Pidgeot", "scale": 1.0}, "megapidgeot": {"name": "Mega Pidgeot", "scale": 1.04},
+	"geodude": {"name": "Geodude", "scale": .9, "float": true}, "graveler": {"name": "Graveler", "scale": .96}, "golem": {"name": "Golem", "scale": 1.02},
+	"machop": {"name": "Machop", "scale": .86}, "machoke": {"name": "Machoke", "scale": .94}, "machamp": {"name": "Machamp", "scale": 1.0}, "gmaxmachamp": {"name": "Gigantamax Machamp", "scale": 1.06},
+	"abra": {"name": "Abra", "scale": .88}, "kadabra": {"name": "Kadabra", "scale": .94}, "alakazam": {"name": "Alakazam", "scale": .98}, "megaalakazam": {"name": "Mega Alakazam", "scale": 1.02, "float": true},
+	"lapras": {"name": "Lapras", "scale": 1.0}, "gmaxlapras": {"name": "Gigantamax Lapras", "scale": 1.06},
+	"snorlax": {"name": "Snorlax", "scale": 1.0}, "gmaxsnorlax": {"name": "Gigantamax Snorlax", "scale": 1.08},
+	"dratini": {"name": "Dratini", "scale": .9}, "dragonair": {"name": "Dragonair", "scale": .98}, "dragonite": {"name": "Dragonite", "scale": 1.02},
 }
 
 static var _mon_cache := {}
@@ -26,13 +34,14 @@ static var _pen := Pen.new()
 
 # ---------- cached access ----------
 ## Returns the recorded drawing of a Pokémon at time t, centred on its feet area.
-const ANIMATED := ["gmax", "charmander", "charmeleon", "charizard", "megax", "gastly", "haunter", "megagengar", "venusaur", "megavenusaur", "wobbuffet", "mewtwo", "armormewtwo", "megamewtwo"]
+const ANIMATED := ["gmax", "charmander", "charmeleon", "charizard", "megax", "gastly", "haunter", "megagengar", "venusaur", "megavenusaur", "wobbuffet", "mewtwo", "armormewtwo", "megamewtwo",
+	"magikarp", "megagyarados", "pidgey", "pidgeotto", "pidgeot", "megapidgeot", "geodude", "gmaxmachamp", "megaalakazam", "gmaxlapras", "dragonair"]
 
 
 static func mon(sp: String, t: float, opt := {}, alpha := 1.0) -> Array:
 	var frame := posmod(int(floor(t * ANIM_FPS)), ANIM_FRAMES) if ANIMATED.has(sp) else 18
 	alpha = snappedf(alpha, 0.05)
-	var key := "%s|%d|%s|%s|%s|%s" % [sp, frame, opt.get("shades", false), opt.get("conf", 0.0) > 0.0, opt.get("amulet", false), alpha]
+	var key := "%s|%d|%s|%s|%s|%s|%s" % [sp, frame, opt.get("shades", false), opt.get("conf", 0.0) > 0.0, opt.get("amulet", false), opt.get("sleep", false), alpha]
 	if _mon_cache.has(key):
 		return _mon_cache[key]
 	var c := _pen
@@ -150,6 +159,31 @@ static func draw_mon(c: Pen, sp: String, t: float, opt := {}) -> void:
 		"armormewtwo": mewtwo(c, t, 1)
 		"megamewtwo": mewtwo(c, t, 2)
 		"ashpika": ashpika(c, t)
+		"magikarp": magikarp(c, t)
+		"gyarados": gyarados(c, t, false)
+		"megagyarados": gyarados(c, t, true)
+		"pidgey": bird(c, t, 0)
+		"pidgeotto": bird(c, t, 1)
+		"pidgeot": bird(c, t, 2)
+		"megapidgeot": bird(c, t, 3)
+		"geodude": rocky(c, t, 0)
+		"graveler": rocky(c, t, 1)
+		"golem": rocky(c, t, 2)
+		"machop": fighter(c, t, 0)
+		"machoke": fighter(c, t, 1)
+		"machamp": fighter(c, t, 2)
+		"gmaxmachamp": fighter(c, t, 3)
+		"abra": psi(c, t, 0)
+		"kadabra": psi(c, t, 1)
+		"alakazam": psi(c, t, 2)
+		"megaalakazam": psi(c, t, 3)
+		"lapras": lapras(c, t, false)
+		"gmaxlapras": lapras(c, t, true)
+		"snorlax": lax(c, t, false, opt)
+		"gmaxsnorlax": lax(c, t, true, opt)
+		"dratini": dragon(c, t, 0)
+		"dragonair": dragon(c, t, 1)
+		"dragonite": dragon(c, t, 2)
 	c.restore()
 
 
@@ -512,6 +546,271 @@ static func mewtwo(c: Pen, t: float, form: int) -> void:
 			c.ell(s * 7, -4, 3, 2.4); c.fs("#8b93a3", "#3b414d")
 
 
+# ---------- new Pokémon (stage 3 and 4) ----------
+static func magikarp(c: Pen, t: float) -> void:
+	var flop := sin(t * 9) * .18
+	c.save(); c.translate(0, 4 - absf(sin(t * 9)) * 4); c.rotate(flop)
+	c.poly([[10, 2], [21, -8], [19, 2], [21, 12]]); c.fs("#f6e3a0")
+	c.poly([[-6, -9], [2, -18], [8, -8]]); c.fs("#f6e3a0")
+	c.ell(0, 3, 13, 11); c.fs("#f0703a")
+	c.ell(-2, 8, 9, 5); c.fs("#f6e3a0", null)
+	for i in 3:
+		c.begin(); c.arc(-2 + i * 5, 0, 4, -.9, .9); c.stroke("#c24a22", 1)
+	c.ell(-8, -2, 4, 4.4); c.fs("#fff"); c.ell(-8.5, -2, 1.3, 1.3); c.fill("#111")
+	c.ell(-13, 4, 2.6, 3); c.fs("#ffd6c0")
+	c.begin(); c.move_to(-12, 1); c.quad_to(-20, -4, -18, -12); c.move_to(-12, 6); c.quad_to(-21, 8, -20, 15); c.stroke("#f6e3a0", 1.6, true)
+	c.ell(2, 12, 4, 2.4, .4); c.fs("#f6e3a0")
+	c.restore()
+
+
+static func gyarados(c: Pen, t: float, mega: bool) -> void:
+	var body := "#2a3e8a" if mega else "#3c78c8"
+	var fin := "#e2453c" if mega else "#f2f0e6"
+	var belly := "#f2d28a"
+	var sw := sin(t * 3) * 1.5
+	c.begin(); c.move_to(16, 16); c.bez_to(26, 6, 18, -6, 8, -4); c.bez_to(-4, -2, -2, -16, -6, -18 + sw)
+	c.stroke(OUT, 12, true); c.stroke(body, 9.4, true)
+	c.begin(); c.move_to(14, 15); c.bez_to(22, 6, 16, -3, 8, -1); c.stroke(belly, 3.4, true)
+	c.poly([[16, 16], [24, 22], [10, 21]]); c.fs(fin)
+	c.save(); c.alpha *= .55; c.ell(-2, 17, 16, 3.6); c.fill("#8fd0ff"); c.restore()
+	for i in 3:
+		c.poly([[12 - i * 5, -5 + i * 3], [16 - i * 5, -12 + i * 3], [10 - i * 5, -8 + i * 3]]); c.fs(fin)
+	c.save(); c.translate(-7, -18 + sw)
+	c.poly([[0, -8], [-3, -18], [4, -10]]); c.fs(fin)
+	c.ell(0, 0, 10, 8); c.fs(body)
+	c.ell(-5, 4, 7, 5); c.fs("#f6f2e6")
+	c.begin(); c.move_to(-11, 3); c.line_to(-2, 1); c.line_to(-1, 6); c.close(); c.fill("#7a1a1a")
+	for x in [-9, -6, -3]:
+		c.poly([[x, 1.6], [x + 1, 3.6], [x + 2, 1.6]]); c.fill("#fff")
+	c.begin(); c.move_to(-1, -3); c.line_to(5, -6); c.line_to(4, -1); c.close(); c.fill("#fff")
+	c.ell(3, -3, 1.2, 1.4); c.fill("#c0303a" if mega else "#111")
+	c.begin(); c.move_to(-9, -1); c.quad_to(-16, -8, -12, -14); c.stroke(belly, 1.8, true)
+	c.restore()
+
+
+static func bird(c: Pen, t: float, st: int) -> void:
+	var brown: String = ["#b07a46", "#a8703e", "#9a6438", "#8a5a3a"][st]
+	var cream := "#f3dfb4"
+	var flap := sin(t * 10) * (.25 if st < 3 else .35)
+	if st >= 2:
+		var plume := ["#e2453c", "#ffd23f", "#e2453c"]
+		for i in 3:
+			c.save(); c.translate(-2, -16); c.rotate(-.4 + i * .3 + sin(t * 3 + i) * .05)
+			c.ell(10, 0, 12 + st * 2, 3); c.fs(plume[i] if st == 2 else ["#3c78c8", "#e2453c", "#ffd23f"][i])
+			c.restore()
+	c.poly([[8, 10], [20, 14], [18, 6]]); c.fs(brown)
+	for s in [-1, 1]:
+		c.save(); c.translate(s * 9, 0); c.rotate(s * (.5 + flap))
+		c.ell(s * 6, -2, 9 + st * 2, 5); c.fs(brown)
+		c.ell(s * 9, -1, 4, 2.4); c.fs("#5a3a22", null)
+		c.restore()
+	c.ell(0, 6, 10 + st, 10.5 + st * .5); c.fs(brown)
+	c.ell(0, 9, 6.5 + st * .5, 7); c.fs(cream, null)
+	c.ell(-3, 17.5, 2, 1.2); c.fs("#e8a050"); c.ell(3, 17.5, 2, 1.2); c.fs("#e8a050")
+	if st == 1:
+		for i in 3:
+			c.ell(2 + i * 3, -19 + i, 5, 2, -.5 + i * .3); c.fs("#e2453c" if i % 2 else "#ffd23f")
+	if st == 0:
+		c.poly([[-1, -16], [3, -22], [5, -15]]); c.fs(brown)
+	c.ell(0, -8, 10, 9); c.fs(brown)
+	c.ell(0, -5, 7, 5); c.fs(cream, null)
+	for s in [-1, 1]:
+		c.ell(s * 4.4, -9, 2, 2.3); c.fill("#111"); c.ell(s * 4.4 + .6, -9.8, .7, .7); c.fill("#fff")
+		c.begin(); c.move_to(s * 2, -12); c.line_to(s * 7, -12.6); c.stroke("#111", 1.2)
+	c.poly([[-3, -5], [3, -5], [0, 0]]); c.fs("#e8a050", OUT, 1)
+
+
+static func rocky(c: Pen, t: float, st: int) -> void:
+	var rock: String = ["#9a9488", "#8c8476", "#8a8a6a"][st]
+	var dark := "#5e584c"
+	if st == 0:
+		c.translate(0, sin(t * 3) * 1.5 - 3)
+		for s in [-1, 1]:
+			c.begin(); c.move_to(s * 9, 2); c.quad_to(s * 17, 6, s * 18, -2); c.stroke(OUT, 6, true); c.stroke(rock, 4, true)
+			c.ell(s * 19, -4, 4.4, 4); c.fs(rock)
+			c.begin(); c.move_to(s * 17, -6); c.line_to(s * 20, -3); c.stroke(dark, 1)
+		c.ell(0, 0, 12, 11); c.fs(rock)
+	elif st == 1:
+		for s in [-1, 1]:
+			for k in [-1, 1]:
+				c.ell(s * 14, 2 + k * 6, 5, 4, s * k * .4); c.fs(rock)
+		c.ell(-5, 16, 5, 3); c.fs(rock); c.ell(5, 16, 5, 3); c.fs(rock)
+		c.begin(); c.move_to(-14, 6); c.line_to(-12, -10); c.line_to(-4, -16); c.line_to(6, -15); c.line_to(13, -8); c.line_to(14, 8); c.line_to(6, 15); c.line_to(-8, 15); c.close(); c.fs(rock)
+		for xy in [[-8, -8], [7, -10], [9, 6], [-9, 8]]:
+			c.ell(xy[0], xy[1], 2.2, 1.6); c.fill(dark)
+	else:
+		c.ell(-7, 16, 5, 3); c.fs("#c89a62"); c.ell(7, 16, 5, 3); c.fs("#c89a62")
+		for s in [-1, 1]:
+			c.ell(s * 16, 4, 4.5, 5); c.fs("#c89a62")
+		c.ell(0, 3, 16, 14); c.fs(rock)
+		for i in 7:
+			var a := -PI * .9 + i * .3
+			c.begin(); c.move_to(cos(a) * 10, 3 + sin(a) * 9); c.line_to(cos(a) * 15.5, 3 + sin(a) * 13); c.stroke(dark, 1.2)
+		c.ell(0, -1, 7, 6.5); c.fs("#c89a62")
+	var ey := -4.0 if st == 2 else (-3.0 if st == 1 else -2.0)
+	for s in [-1, 1]:
+		c.begin(); c.move_to(s * 1.5, ey - 1.5); c.line_to(s * 6, ey - 3); c.stroke(OUT, 1.6)
+		c.ell(s * 3.6, ey + 1, 1.6, 1.8); c.fill("#111")
+	c.begin(); c.move_to(-3, ey + 6); c.line_to(3, ey + 6); c.stroke(OUT, 1.3)
+
+
+static func fighter(c: Pen, t: float, st: int) -> void:
+	var skin: String = ["#9ab0c8", "#8d95b4", "#7a8aa8", "#7a8aa8"][st]
+	if st == 3:
+		c.save(); c.alpha *= .3 + .12 * sin(t * 6); c.ell(0, -2, 24, 26); c.fill("#ff6a3a"); c.restore()
+	var big := st >= 2
+	c.ell(-5, 17, 4.5, 2.6); c.fs(skin); c.ell(5, 17, 4.5, 2.6); c.fs(skin)
+	for s in [-1, 1]:
+		c.begin(); c.move_to(s * 4, 8); c.line_to(s * 5, 16); c.stroke(OUT, 6, true); c.stroke(skin, 4, true)
+	var arms := [[-4.0, .8]] if not big else [[-6.0, .9], [2.0, .5]]
+	for ar in arms:
+		for s in [-1, 1]:
+			c.begin(); c.move_to(s * 7, ar[0]); c.quad_to(s * 16, ar[0] + 2, s * 15, ar[0] - 8); c.stroke(OUT, 6, true); c.stroke(skin, 4, true)
+			c.ell(s * 15, ar[0] - 10, 3.8, 3.4); c.fs(skin)
+	c.ell(0, 3, 9 + st * .6, 10); c.fs(skin)
+	if st >= 1:
+		c.fill_rect(-8, 8, 16, 3.2, Color("#ffd23f" if st >= 2 else "#2a2a34"))
+		for s in [-1, 1]:
+			c.begin(); c.move_to(s * 3, -2); c.line_to(s * 6, 4); c.stroke("#c0303a" if st == 1 else "#5a6a88", 1.2)
+	c.ell(0, -10, 8, 7.5); c.fs(skin)
+	if st == 0:
+		for i in 3:
+			c.poly([[-4 + i * 4, -16], [-2 + i * 4, -22], [0 + i * 4, -16]]); c.fs(skin)
+	else:
+		c.poly([[-5, -15], [0, -22], [5, -15]]); c.fs(skin)
+		c.ell(0, -17, 2, 1.8); c.fs("#c0303a" if st >= 2 else skin, null)
+	for s in [-1, 1]:
+		c.begin(); c.move_to(s * 1.5, -12); c.line_to(s * 6, -13.5); c.stroke(OUT, 1.4)
+		c.ell(s * 3.6, -10, 1.4, 1.6); c.fill("#c0303a" if st >= 2 else "#111")
+	c.begin(); c.move_to(-2.5, -6); c.line_to(2.5, -6); c.stroke(OUT, 1.2)
+
+
+static func psi(c: Pen, t: float, st: int) -> void:
+	var gold: String = ["#e8c040", "#e2b030", "#dcaa30", "#e0b438"][st]
+	var armor := "#8a5a2a"
+	if st == 3:
+		c.save(); c.alpha *= .25 + .1 * sin(t * 3); c.ell(0, -4, 22, 26); c.fill("#ff9ad6"); c.restore()
+		c.translate(0, sin(t * 2) * 2 - 3)
+	c.begin(); c.move_to(6, 12); c.bez_to(18, 14, 20, 4, 14, -2); c.stroke(OUT, 6, true); c.stroke(gold, 4, true)
+	c.ell(-5, 17, 4, 2.4); c.fs(gold); c.ell(5, 17, 4, 2.4); c.fs(gold)
+	c.ell(0, 6, 8.5, 10.5); c.fs(armor)
+	c.fill_rect(-4, 2, 8, 1.6, Color("#c89060"))
+	for s in [-1, 1]:
+		c.begin(); c.move_to(s * 7, 0); c.quad_to(s * 13, 4, s * 12, 10); c.stroke(OUT, 4.4, true); c.stroke(gold, 2.8, true)
+		if st >= 1 and (s == 1 or st >= 2):
+			var sp := sin(t * 2 + s) * 2 if st == 3 else 0.0
+			c.begin(); c.move_to(s * 13, 10 + sp); c.line_to(s * 15, -2 + sp); c.stroke("#c8ccd6", 1.6)
+			c.ell(s * 15.3, -4 + sp, 2.2, 3); c.fs("#c8ccd6", "#6a7080", 1)
+	for s in [-1, 1]:
+		c.poly([[s * 3, -16], [s * 9, -27 - st], [s * 9, -14]]); c.fs(gold)
+	c.ell(0, -10, 9, 8); c.fs(gold)
+	c.ell(0, -6, 5, 3.5); c.fs("#f0d070", null)
+	if st >= 1:
+		star(c, 0, -14, 2.6, "#c0303a")
+	if st >= 2:
+		c.begin(); c.move_to(-1, -5); c.quad_to(-8, -2, -10, 4 + st); c.move_to(1, -5); c.quad_to(8, -2, 10, 4 + st); c.stroke(armor, 2.2, true)
+	for s in [-1, 1]:
+		if st == 0:
+			c.begin(); c.move_to(s * 2, -10); c.line_to(s * 6.5, -10.5); c.stroke(OUT, 1.6)
+		else:
+			c.begin(); c.move_to(s * 2, -11); c.line_to(s * 7, -12); c.line_to(s * 6, -9); c.close(); c.fill("#fff")
+			c.ell(s * 5, -10.4, 1, 1.2); c.fill("#111")
+
+
+static func lapras(c: Pen, t: float, gmax: bool) -> void:
+	var blue := "#5aa8d8"
+	var shell := "#9a9aa8"
+	if gmax:
+		for i in 3:
+			c.save(); c.alpha *= .35; c.ell(0, -8 - i * 5, 26 - i * 4, 8, sin(t + i) * .1); c.fill(["#7af0c8", "#9ad0ff", "#ff9ad6"][i]); c.restore()
+	c.poly([[12, 12], [22, 16], [14, 18]]); c.fs(blue)
+	c.ell(-10, 16, 6, 3); c.fs(blue); c.ell(8, 17, 6, 3); c.fs(blue)
+	c.ell(2, 8, 15, 10); c.fs("#f2e6c0")
+	c.ell(5, 4, 13, 9); c.fs(shell if not gmax else "#8ab8d0")
+	for xy in [[0, -1], [6, -3], [12, 0], [3, 5], [10, 6]]:
+		c.ell(xy[0], xy[1], 2.6, 2); c.fs("#d8d8e0" if not gmax else "#f0f6ff", "#6a6a78", 1)
+	c.begin(); c.move_to(-6, 6); c.bez_to(-14, 0, -14, -10, -8, -16); c.stroke(OUT, 8, true); c.stroke(blue, 6, true)
+	c.begin(); c.move_to(-7, 6); c.bez_to(-12, 2, -12, -8, -8, -13); c.stroke("#f2e6c0", 2.4, true)
+	c.ell(-6, -20, 8, 6.5); c.fs(blue)
+	c.poly([[-6, -25], [-4, -31], [-2, -25]]); c.fs(blue)
+	for s in [-1, 1]:
+		c.ell(-6 + s * 7.5, -21, 2.4, 3, s * .4); c.fs(blue)
+	c.ell(-9, -20, 1.6, 1.8); c.fill("#111"); c.ell(-3, -20, 1.6, 1.8); c.fill("#111")
+	c.begin(); c.arc(-6, -17.5, 2.4, .2 * PI, .8 * PI); c.stroke(OUT, 1.1)
+
+
+static func lax(c: Pen, t: float, gmax: bool, _o: Dictionary) -> void:
+	var teal := "#2f6a74"
+	var cream := "#f0e2bc"
+	var breathe := 1 + sin(t * 2) * .02
+	c.save(); c.scale(breathe, 1 / breathe)
+	c.ell(-11, 16, 7, 4.4); c.fs(cream); c.ell(11, 16, 7, 4.4); c.fs(cream)
+	for s in [-1, 1]:
+		c.ell(s * 10, 17, 1.4, 1.4); c.fill("#8a7a5a")
+	for s in [-1, 1]:
+		c.ell(s * 17, 2, 5, 8, s * .3); c.fs(teal)
+	c.ell(0, 4, 18, 15); c.fs(teal)
+	c.ell(0, 7, 13, 11); c.fs(cream, null)
+	if gmax:
+		c.ell(0, 6, 9, 5); c.fs("#8a6a3a")
+		c.ell(0, 1, 6, 5); c.fs("#5aa650")
+		c.ell(-3, -1, 3.6, 3.2); c.fs("#7cc66a", null)
+		for xy in [[-7, 9], [6, 9], [0, 11]]:
+			c.ell(xy[0], xy[1], 1.4, 1.4); c.fill("#ff8ab4")
+	for s in [-1, 1]:
+		c.poly([[s * 5, -18], [s * 10, -24], [s * 11, -15]]); c.fs(teal)
+	c.ell(0, -12, 12, 9); c.fs(teal)
+	c.ell(0, -9, 8.5, 6); c.fs(cream, null)
+	for s in [-1, 1]:
+		c.begin(); c.move_to(s * 2, -12); c.line_to(s * 6.5, -12); c.stroke(OUT, 1.4)
+	c.begin(); c.move_to(-3, -7); c.line_to(3, -7); c.stroke(OUT, 1.2)
+	c.poly([[-2, -7], [-1.2, -5.4], [-.4, -7]]); c.fill("#fff"); c.poly([[.4, -7], [1.2, -5.4], [2, -7]]); c.fill("#fff")
+	c.restore()
+
+
+static func dragon(c: Pen, t: float, st: int) -> void:
+	if st == 2:
+		var orange := "#f0a050"
+		for s in [-1, 1]:
+			c.save(); c.translate(s * 8, -4); c.rotate(s * .5)
+			c.ell(s * 8, -4, 9, 5); c.fs("#3aa89a")
+			c.restore()
+		c.begin(); c.move_to(6, 12); c.quad_to(18, 16, 20, 6); c.stroke(OUT, 7, true); c.stroke(orange, 5, true)
+		c.ell(-6, 17, 5, 3); c.fs(orange); c.ell(6, 17, 5, 3); c.fs(orange)
+		c.ell(0, 6, 12, 12); c.fs(orange)
+		c.ell(0, 9, 8, 8); c.fs("#f6e0a8", null)
+		for i in 3:
+			c.begin(); c.move_to(-6, 4 + i * 4); c.line_to(6, 4 + i * 4); c.stroke("#c8a060", .9)
+		for s in [-1, 1]:
+			c.ell(s * 10, 4, 3, 4.4, s * -.4); c.fs(orange)
+			c.begin(); c.move_to(s * 3, -17); c.quad_to(s * 6, -26, s * 10, -27); c.stroke(OUT, 1.8)
+		c.ell(0, -10, 9, 8); c.fs(orange)
+		c.ell(0, -6, 5.6, 3.6); c.fs("#f6e0a8", null)
+		for s in [-1, 1]:
+			c.ell(s * 4, -11, 1.6, 2); c.fill("#111"); c.ell(s * 4 + .5, -11.6, .6, .6); c.fill("#fff")
+		c.begin(); c.arc(0, -7, 2.4, .2 * PI, .8 * PI); c.stroke(OUT, 1.1)
+		return
+	var blue := "#7aa4e8" if st == 0 else "#5a8ae0"
+	var sw := sin(t * 3) * 2
+	c.begin(); c.move_to(18, 14 + sw * .5); c.bez_to(4, 22, -14, 18, -10, 8); c.bez_to(-6, 0, 4, 2, 4, -6); c.bez_to(4, -10, 0, -14, -3, -15)
+	c.stroke(OUT, 10 if st == 0 else 11, true); c.stroke(blue, 7.6 if st == 0 else 8.6, true)
+	c.begin(); c.move_to(16, 15 + sw * .5); c.bez_to(4, 21, -12, 17, -9, 9); c.stroke("#eef2ff", 2.4, true)
+	if st == 1:
+		for xy in [[18, 14 + sw * .5], [2, -4]]:
+			c.ell(xy[0], xy[1], 2.8, 2.8); c.fs("#4ab0f0", "#1a4a8a", 1)
+		c.ell(17.6, 13.2 + sw * .5, .9, .9); c.fill("#fff")
+	c.ell(-4, -17, 7.5, 6.5); c.fs(blue)
+	c.ell(-7, -13.5, 4, 3); c.fs("#eef2ff", null)
+	if st == 0:
+		for s in [-1, 1]:
+			c.poly([[-4 + s * 5, -21], [-4 + s * 11, -26], [-4 + s * 8, -18]]); c.fs("#f6f6ff")
+	else:
+		c.poly([[-3, -23], [-1, -30], [1, -22]]); c.fs("#f6f6ff")
+		for s in [-1, 1]:
+			c.ell(-4 + s * 8, -20, 3, 1.6, s * -.3); c.fs("#f6f6ff")
+	c.ell(-7, -18, 1.6, 2); c.fill("#5a2a8a"); c.ell(-1.5, -18, 1.6, 2); c.fill("#5a2a8a")
+
+
 # ---------- Pokéballs ----------
 static func draw_ball(c: Pen, type: String) -> void:
 	var b: Dictionary = Data.BALLS[type]
@@ -545,6 +844,21 @@ static func draw_ball(c: Pen, type: String) -> void:
 		"master":
 			for s in [-1, 1]:
 				c.begin(); c.arc(s * a * .52, -a * .52, a * .2); c.fill("#e85aa8")
+		"timer":
+			for x in [-.7, 0.0, .7]:
+				c.fill_rect(a * x - a * .1, -a, a * .2, a * .9, Color("#1b1b22"))
+			c.fill_rect(-a, -a * .45, 2 * a, a * .14, Color("#e3350d"))
+		"net":
+			c.begin()
+			for x in [-.6, -.2, .2, .6]:
+				c.move_to(a * x, -a); c.line_to(a * x, 0)
+			for y in [-.7, -.35]:
+				c.move_to(-a, a * y); c.line_to(a, a * y)
+			c.stroke("#123c44", a * .08)
+		"heal":
+			c.fill_rect(-a, -a * .36, 2 * a, a * .18, Color("#ffd6e6"))
+			c.fill_rect(-a * .1, -a * .9, a * .2, a * .5, Color("#ffffff"))
+			c.fill_rect(-a * .25, -a * .75, a * .5, a * .2, Color("#ffffff"))
 	c.begin(); c.ellipse(-a * .38, -a * .55, a * .28, a * .16, -.6); c.fill(Color(1, 1, 1, .28))
 	c.fill_rect(-r, -r * .12, 2 * r, r * .24, Color("#16161a"))
 	c.restore()
