@@ -40,7 +40,7 @@ func _compare(label: String, s0: Dictionary, s1: Dictionary) -> void:
 
 
 func _check_stats_never_drop() -> void:
-	for k in Data.KINDS:
+	for k in Data.TOWERS:
 		for a in 4:
 			for b in 4:
 				if not _reachable(a, b):

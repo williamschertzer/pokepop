@@ -57,6 +57,9 @@ const UNLOCK := {
 	"abra": {"wave": 40, "maps": 3},
 	"snorlax": {"wave": 40, "maps": 4},
 	"dratini": {"wave": 40, "maps": 3, "diff": "hard"},
+	"chansey": {"wave": 20},
+	"eevee": {"wave": 40, "maps": 2},
+	"ditto": {"wave": 40, "maps": 2, "diff": "hard"},
 }
 const DIFF_RANK := {"easy": 0, "normal": 1, "hard": 2}
 
@@ -99,6 +102,13 @@ static func unlock_short(kind: String) -> String:
 	if r.wave < 40:
 		return "Wave %d" % r.wave
 	return ("Hard ×%d" if r.diff == "hard" else "Win ×%d") % r.maps
+
+## Eevee and its three evolutions share their starting stats and second path.
+const EEVEE_BASE := {"range": 115, "rate": 0.8, "dmg": 1, "targets": 2, "soak": false, "muddy": 0, "muddyDmg": 4, "volt": 0, "burn": 0, "burnMul": 1, "area": 0, "resort": 0, "detect": false}
+const EEVEE_B := [
+	{"name": "Quick Attack", "cost": 300, "desc": "Attacks 25% faster.", "fx": [["*", "rate", 0.75]]},
+	{"name": "Swift", "cost": 700, "desc": "Hits 1 more ball and spots Dusk Balls.", "fx": [["+", "targets", 1], ["=", "detect", true]]},
+	{"name": "Last Resort", "cost": 2600, "desc": "Every 5s, hits the toughest ball in range for 25.", "fx": [["=", "resort", 5]]}]
 
 ## Upgrade effects are lists of [op, stat, value]: "+" adds, "*" multiplies, "=" sets.
 const TOWERS := {
@@ -278,8 +288,62 @@ const TOWERS := {
 			{"name": "Dragon Rage", "cost": 800, "desc": "Every hit on a Master Ball or the balloon deals 20 extra.", "fx": [["=", "rage", 20]]},
 			{"name": "Dragon Dance", "cost": 1500, "desc": "Attacks 10% faster for every wave it survives, up to 60%.", "fx": [["=", "dance", true]]},
 			{"name": "Hyper Beam", "cost": 4200, "desc": "Every 6s, a beam through the toughest ball deals 30 to everything in its line.", "fx": [["=", "hyper", 6]]}]},
+	"eevee": {"name": "Eevee", "type": "Normal", "cost": 450, "role": "Evolves your way", "branches": ["vaporeon", "jolteon", "flareon"],
+		"blurb": "Swift stars hit 2 balls at once. Its first evolution is your choice: Vaporeon, Jolteon or Flareon.",
+		"base": EEVEE_BASE,
+		"A": [
+			{"name": "Evolve: your choice", "cost": 650, "desc": "Pick Vaporeon, Jolteon or Flareon. Each one plays differently.", "fx": []},
+			{"name": "Second evolution move", "cost": 1500, "desc": "Depends on which evolution you picked.", "fx": []},
+			{"name": "Final evolution move", "cost": 4700, "desc": "Depends on which evolution you picked.", "fx": []}],
+		"B": EEVEE_B},
+	"vaporeon": {"name": "Vaporeon", "type": "Water", "cost": 450, "role": "Soaks and washes back", "evolvesFrom": "eevee",
+		"blurb": "Water stars soak balls so they roll slower, and Muddy Water washes them back.",
+		"base": EEVEE_BASE,
+		"A": [
+			{"name": "Evolve: Vaporeon", "cost": 650, "desc": "Water type. +1 damage, and balls hit move 40% slower for 1.5s.", "fx": [["+", "dmg", 1], ["=", "soak", true]]},
+			{"name": "Muddy Water", "cost": 1500, "desc": "Every 4s, a wave hits every ball in range for 4 and pushes them back.", "fx": [["=", "muddy", 4]]},
+			{"name": "Hydro Steam", "cost": 4600, "desc": "+2 damage, hits 2 more balls, and Muddy Water hits for 8 more.", "fx": [["+", "dmg", 2], ["+", "targets", 2], ["+", "muddyDmg", 8]]}],
+		"B": EEVEE_B},
+	"jolteon": {"name": "Jolteon", "type": "Electric", "cost": 450, "role": "Rapid fire", "evolvesFrom": "eevee",
+		"blurb": "Needle-fast Electric attacks. Heavy Balls ignore Electric unless their armour is knocked off.",
+		"base": EEVEE_BASE,
+		"A": [
+			{"name": "Evolve: Jolteon", "cost": 650, "desc": "Electric type. Attacks twice as fast, but can't hurt Heavy Balls.", "fx": [["*", "rate", 0.5]]},
+			{"name": "Pin Missile", "cost": 1400, "desc": "Each attack hits 3 more balls.", "fx": [["+", "targets", 3]]},
+			{"name": "Thunder Fang", "cost": 4800, "desc": "+2 damage. Every 6s, a bolt hits every ball in range for 8, even Heavy Balls.", "fx": [["+", "dmg", 2], ["=", "volt", 6]]}],
+		"B": EEVEE_B},
+	"flareon": {"name": "Flareon", "type": "Fire", "cost": 450, "role": "Big hits and burns", "evolvesFrom": "eevee",
+		"blurb": "Hard-hitting fire that burns, and later splashes onto balls next to the target.",
+		"base": EEVEE_BASE,
+		"A": [
+			{"name": "Evolve: Flareon", "cost": 650, "desc": "Fire type. +2 damage, and hits burn for 1 damage 3 times.", "fx": [["+", "dmg", 2], ["=", "burn", 3]]},
+			{"name": "Lava Plume", "cost": 1500, "desc": "Each hit also scorches balls next to the target.", "fx": [["+", "area", 35]]},
+			{"name": "Flare Blitz", "cost": 4800, "desc": "+3 damage, and burns do double damage.", "fx": [["+", "dmg", 3], ["*", "burnMul", 2]]}],
+		"B": EEVEE_B},
+	"ditto": {"name": "Ditto", "type": "Normal", "cost": 400, "role": "Copycat", "pathNames": ["Transform", "Imposter"],
+		"blurb": "Transforms into the closest Pokémon within its range and fights like it. Its upgrades let it copy that Pokémon's upgrades too. Can't copy Mewtwo, Snorlax, Abra or Chansey.",
+		"base": {"range": 120, "rate": 1.2, "dmg": 1, "copyA": 0, "copyB": 0, "detect": false},
+		"A": [
+			{"name": "Transform", "cost": 500, "desc": "Also copies the first upgrade on the other Pokémon's first path, once it has it.", "fx": [["+", "copyA", 1]]},
+			{"name": "Transform II", "cost": 1500, "desc": "Copies up to 2 upgrades on the first path.", "fx": [["+", "copyA", 1]]},
+			{"name": "Perfect Copy", "cost": 4200, "desc": "Copies all 3 upgrades on the first path.", "fx": [["+", "copyA", 1]]}],
+		"B": [
+			{"name": "Imposter", "cost": 500, "desc": "Also copies the first upgrade on the other Pokémon's second path, once it has it.", "fx": [["+", "copyB", 1]]},
+			{"name": "Imposter II", "cost": 1500, "desc": "Copies up to 2 upgrades on the second path.", "fx": [["+", "copyB", 1]]},
+			{"name": "Mirror Image", "cost": 4200, "desc": "Copies all 3 upgrades on the second path.", "fx": [["+", "copyB", 1]]}]},
+	"chansey": {"name": "Chansey", "type": "Normal", "cost": 550, "role": "Healer",
+		"blurb": "Soft-Boiled heals Pikachu after every wave, and it throws eggs at balls that come close.",
+		"base": {"range": 100, "rate": 1.3, "dmg": 1, "heal": 3, "eggArea": 0, "safeguard": 0, "toss": 0, "lucky": false, "detect": false},
+		"A": [
+			{"name": "Evolve: Blissey", "cost": 900, "desc": "+1 damage, and heals 5 more HP after every wave.", "fx": [["+", "dmg", 1], ["+", "heal", 5]]},
+			{"name": "Safeguard", "cost": 1800, "desc": "Every 12s, the next ball that reaches Pikachu bounces back to the start instead. Master Balls and the balloon can't be bounced.", "fx": [["=", "safeguard", 12]]},
+			{"name": "Healing Wish", "cost": 4500, "desc": "Heals 12 more HP after every wave, and Safeguard recharges twice as fast.", "fx": [["+", "heal", 12], ["*", "safeguard", 0.5]]}],
+		"B": [
+			{"name": "Egg Bomb", "cost": 400, "desc": "+1 damage, and eggs burst onto balls next to the target.", "fx": [["+", "dmg", 1], ["+", "eggArea", 35]]},
+			{"name": "Seismic Toss", "cost": 1100, "desc": "Every 3s, throws the toughest ball in range for 15 damage.", "fx": [["=", "toss", 3]]},
+			{"name": "Lucky Egg", "cost": 2600, "desc": "Every ball popped by a Pokémon in Chansey's range pays ₽1 extra.", "fx": [["=", "lucky", true]]}]},
 }
-const KINDS := ["pikachu", "charmander", "squirtle", "bulbasaur", "gastly", "meowth", "wobbuffet", "magikarp", "pidgey", "geodude", "machop", "abra", "lapras", "snorlax", "dratini", "mewtwo"]
+const KINDS := ["pikachu", "charmander", "squirtle", "bulbasaur", "gastly", "meowth", "wobbuffet", "magikarp", "pidgey", "geodude", "machop", "abra", "lapras", "snorlax", "dratini", "eevee", "ditto", "chansey", "mewtwo"]
 
 const TYPE_COLORS := {
 	"Electric": "#f7d02c", "Fire": "#f08030", "Ghost": "#9a7ad6", "Water": "#5aa8f0",
@@ -300,6 +364,8 @@ const STAT_DEFAULTS := {
 	"auraRate": 1.0, "auraDmg": 0, "auraRange": 1.0, "auraDetect": false, "trick": 0.0, "freeze": 0.0,
 	"gfreeze": 0.0, "surf": 0.0, "brittle": false, "cold": 0.0, "hold": 0.0, "recover": 0.0, "slam": 0.0,
 	"slamDmg": 0.0, "yawn": 0.0, "rage": 0.0, "dance": false, "outrage": 0.0, "hyper": 0.0,
+	"soak": false, "muddy": 0.0, "muddyDmg": 0.0, "volt": 0.0, "resort": 0.0, "copyA": 0, "copyB": 0,
+	"heal": 0, "eggArea": 0.0, "safeguard": 0.0, "toss": 0.0, "lucky": false,
 }
 
 const MAPS := [
@@ -456,7 +522,8 @@ static func compute_stats(kind: String, a: int, b: int) -> Dictionary:
 ## cooldowns. For cooldowns 0 means the move isn't learned yet.
 const LOWER_BETTER := ["rate", "confuse", "recover", "shadowTag", "gmax", "blast", "hydro", "blizzard",
 	"powder", "solar", "goldRush", "encore", "psystrike", "future", "bounce", "hurricane", "explode",
-	"quake", "chi", "trick", "gfreeze", "surf", "cold", "slam", "yawn", "outrage", "hyper"]
+	"quake", "chi", "trick", "gfreeze", "surf", "cold", "slam", "yawn", "outrage", "hyper",
+	"muddy", "volt", "resort", "safeguard", "toss"]
 
 
 ## "=" never makes a stat worse, so evolutions and moves stack in any order
@@ -497,6 +564,7 @@ static func sprite_for(kind: String, a: int) -> String:
 		"lapras": return "gmaxlapras" if a >= 3 else "lapras"
 		"snorlax": return "gmaxsnorlax" if a >= 3 else "snorlax"
 		"dratini": return ["dratini", "dragonair", "dragonite", "dragonite"][a]
+		"chansey": return "blissey" if a >= 1 else "chansey"
 	return kind
 
 
@@ -507,6 +575,11 @@ static func type_mul(type: String, ball: String) -> float:
 
 static func best_key(map_id: String, diff: String) -> String:
 	return map_id if diff == "normal" else "%s:%s" % [map_id, diff]
+
+
+## Eevee's evolutions count as their own kinds; this gives the kind you buy.
+static func base_kind(kind: String) -> String:
+	return TOWERS[kind].get("evolvesFrom", kind)
 
 
 static func path_names(kind: String) -> Array:
