@@ -45,8 +45,63 @@ const ITEMS := {
 	"candy": {"short": "Candy", "name": "Rare Candy", "cost": 300, "step": 0, "desc": "Your next upgrade costs 30% less."},
 }
 
-## New Pokémon unlock when you reach this wave on any map.
-const UNLOCK := {"magikarp": 5, "pidgey": 10, "geodude": 15, "machop": 20, "abra": 25, "lapras": 30, "snorlax": 35, "dratini": 40, "chansey": 12, "eevee": 18, "ditto": 28}
+## New Pokémon unlock by reaching a wave on enough different maps, on Normal
+## or harder ("diff": "hard" means Hard only). Easy runs never unlock anything.
+## A plain number means {"wave": n}.
+const UNLOCK := {
+	"magikarp": {"wave": 15},
+	"pidgey": {"wave": 25},
+	"geodude": {"wave": 40},
+	"machop": {"wave": 40, "maps": 2},
+	"lapras": {"wave": 40, "diff": "hard"},
+	"abra": {"wave": 40, "maps": 3},
+	"snorlax": {"wave": 40, "maps": 4},
+	"dratini": {"wave": 40, "maps": 3, "diff": "hard"},
+	"chansey": {"wave": 20},
+	"eevee": {"wave": 40, "maps": 2},
+	"ditto": {"wave": 40, "maps": 2, "diff": "hard"},
+}
+const DIFF_RANK := {"easy": 0, "normal": 1, "hard": 2}
+
+
+static func unlock_req(kind: String) -> Dictionary:
+	var r = UNLOCK[kind]
+	if r is int:
+		r = {"wave": r}
+	return {"wave": int(r.wave), "maps": int(r.get("maps", 1)), "diff": r.get("diff", "normal")}
+
+
+## How many different maps already meet this Pokémon's unlock goal.
+static func unlock_progress(kind: String, best: Dictionary) -> int:
+	var r := unlock_req(kind)
+	var maps := {}
+	for key in best:
+		var parts: PackedStringArray = String(key).split(":")
+		var diff: String = parts[1] if parts.size() > 1 else "normal"
+		if DIFF_RANK.get(diff, 0) >= DIFF_RANK[r.diff] and int(best[key]) >= r.wave:
+			maps[parts[0]] = true
+	return maps.size()
+
+
+static func is_unlocked(kind: String, best: Dictionary) -> bool:
+	return not UNLOCK.has(kind) or unlock_progress(kind, best) >= unlock_req(kind).maps
+
+
+## "Beat 2 maps on Hard", "Reach wave 25 on any map" and so on.
+static func unlock_text(kind: String) -> String:
+	var r := unlock_req(kind)
+	var on: String = " on Hard" if r.diff == "hard" else " on Normal or Hard"
+	var goal: String = ("Beat " if r.wave >= 40 else "Reach wave %d on " % r.wave)
+	var where: String = ("any map" if r.wave < 40 else "a map") if r.maps == 1 else "%d different maps" % r.maps
+	return goal + where + on
+
+
+## A few characters for the Party button.
+static func unlock_short(kind: String) -> String:
+	var r := unlock_req(kind)
+	if r.wave < 40:
+		return "Wave %d" % r.wave
+	return ("Hard ×%d" if r.diff == "hard" else "Win ×%d") % r.maps
 
 ## Eevee and its three evolutions share their starting stats and second path.
 const EEVEE_BASE := {"range": 115, "rate": 0.8, "dmg": 1, "targets": 2, "soak": false, "muddy": 0, "muddyDmg": 4, "volt": 0, "burn": 0, "burnMul": 1, "area": 0, "resort": 0, "detect": false}
@@ -322,7 +377,33 @@ const MAPS := [
 		"path": [[480, -40], [480, 140], [190, 140], [190, 460], [760, 460], [760, 270], [1000, 270]]},
 	{"id": "mtmoon", "name": "Mt. Moon", "sub": "Short tunnels, no room for error", "diff": "Expert", "lives": 50, "cash": 750, "theme": "cave",
 		"path": [[-40, 300], [290, 300], [290, 120], [630, 120], [630, 470], [1000, 470]]},
+	{"id": "route12", "name": "Route 12", "sub": "A wild Snorlax is blocking the way", "diff": "Medium", "lives": 100, "cash": 750, "theme": "coast",
+		"path": [[-40, 520], [260, 520], [260, 300], [120, 300], [120, 90], [520, 90], [520, 410], [700, 410], [700, 160], [1000, 160]],
+		"water": [["rect", 780, -10, 200, 620], ["ell", 400, 515, 92, 50]]},
+	{"id": "rocktunnel", "name": "Rock Tunnel", "sub": "Pitch dark and packed with boulders", "diff": "Hard", "lives": 75, "cash": 750, "theme": "tunnel",
+		"path": [[-40, 80], [840, 80], [840, 240], [140, 240], [140, 400], [840, 400], [840, 540], [-40, 540]]},
+	{"id": "seafoam", "name": "Seafoam Islands", "sub": "Ice blocks and freezing currents", "diff": "Expert", "lives": 50, "cash": 750, "theme": "ice",
+		"path": [[-40, 150], [330, 150], [330, 470], [630, 470], [630, 130], [1000, 130]],
+		"water": [["ell", 480, 300, 96, 118], ["ell", 830, 400, 120, 105], ["ell", 120, 420, 105, 85]]},
+	{"id": "victory", "name": "Victory Road", "sub": "The last test before the League", "diff": "Expert", "lives": 40, "cash": 750, "theme": "victory",
+		"path": [[-40, 460], [220, 460], [220, 160], [480, 160], [480, 440], [740, 440], [740, 140], [1000, 140]]},
 ]
+
+## Things on a map that a Pokémon can clear away, freeing the spot for another
+## Pokémon. "by" lists who can do it (any evolution) and the move they use; one of
+## them has to be on the field. "find" is money sometimes found underneath.
+const OBSTACLES := {
+	"tree": {"name": "Tree", "cost": 60, "by": {"machop": "Strength", "bulbasaur": "Cut"}},
+	"pine": {"name": "Pine tree", "cost": 60, "by": {"machop": "Strength", "bulbasaur": "Cut"}},
+	"deadtree": {"name": "Dead tree", "cost": 40, "by": {"charmander": "Ember", "machop": "Strength", "bulbasaur": "Cut"}},
+	"rock": {"name": "Rock", "cost": 50, "by": {"geodude": "Rock Smash", "machop": "Rock Smash"}, "find": 150, "chance": .15, "note": "Sometimes hides a Nugget worth ₽150."},
+	"boulder": {"name": "Boulder", "cost": 120, "by": {"machop": "Strength"}, "note": "Too big for Rock Smash. Only Strength moves it."},
+	"ice": {"name": "Ice block", "cost": 80, "by": {"charmander": "Flamethrower"}, "note": "Only fire melts it."},
+	"sleeper": {"name": "Sleeping Snorlax", "cost": 200, "by": {"pikachu": "Thunder Shock"}, "find": 100, "chance": 1.0, "note": "A jolt wakes it up and it wanders off, dropping Leftovers worth ₽100."},
+}
+
+## Pokémon that can stand in water. Everyone else needs dry land.
+const SWIMMERS := ["squirtle", "magikarp", "lapras"]
 
 const DIFF_COLORS := {"Easy": "#5fd38a", "Medium": "#ffd23f", "Hard": "#ff9a4a", "Expert": "#ff6b6b"}
 
@@ -437,12 +518,32 @@ static func compute_stats(kind: String, a: int, b: int) -> Dictionary:
 	return s
 
 
+## Stats where a smaller number is stronger: attack delay, slow factors and
+## cooldowns. For cooldowns 0 means the move isn't learned yet.
+const LOWER_BETTER := ["rate", "confuse", "recover", "shadowTag", "gmax", "blast", "hydro", "blizzard",
+	"powder", "solar", "goldRush", "encore", "psystrike", "future", "bounce", "hurricane", "explode",
+	"quake", "chi", "trick", "gfreeze", "surf", "cold", "slam", "yawn", "outrage", "hyper",
+	"muddy", "volt", "resort", "safeguard", "toss"]
+
+
+## "=" never makes a stat worse, so evolutions and moves stack in any order
+## and nothing you buy can undo something you already bought.
 static func _apply(s: Dictionary, fx: Array) -> void:
 	for e in fx:
+		var st: String = e[1]
 		match e[0]:
-			"+": s[e[1]] += e[2]
-			"*": s[e[1]] *= e[2]
-			"=": s[e[1]] = e[2]
+			"+": s[st] += e[2]
+			"*": s[st] *= e[2]
+			"=":
+				var v = e[2]
+				var cur = s[st]
+				if v is bool or cur is bool:
+					s[st] = v
+				elif st in LOWER_BETTER:
+					if cur == 0 or v < cur:
+						s[st] = v
+				elif v > cur:
+					s[st] = v
 
 
 static func sprite_for(kind: String, a: int) -> String:

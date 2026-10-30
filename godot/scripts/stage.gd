@@ -6,6 +6,7 @@ extends Control
 signal tower_clicked(tw)  # Game.Tower or null
 signal place_requested(x: float, y: float, keep: bool)
 signal touch_preview(x: float, y: float)
+signal obstacle_clicked(o: Dictionary)
 
 const W := Data.W
 const H := Data.H
@@ -15,6 +16,7 @@ var placing := ""
 var ghost = null  # Vector2 or null
 var ghost_touch := false
 var selected = null  # Game.Tower or null
+var sel_obs = null  # obstacle Dictionary or null
 
 var _bg_layer: Control
 var _fx_layer: Control
@@ -73,6 +75,10 @@ func _gui_input(event: InputEvent) -> void:
 		for tw in game.towers:
 			if Vector2(tw.x, tw.y).distance_to(p) < 20:
 				over_tower = true
+		if placing == "":
+			var o = game.obstacle_at(p.x, p.y)
+			if o != null and Data.OBSTACLES.has(o.kind):
+				over_tower = true
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if over_tower else Control.CURSOR_CROSS
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.device == -1:
@@ -98,6 +104,12 @@ func _gui_input(event: InputEvent) -> void:
 			if Vector2(tw.x, tw.y).distance_to(p) < 22:
 				hit = tw
 				break
+		if hit == null:
+			var o = game.obstacle_at(p.x, p.y, 4)
+			if o != null and Data.OBSTACLES.has(o.kind):
+				obstacle_clicked.emit(o)
+				accept_event()
+				return
 		tower_clicked.emit(hit)
 		accept_event()
 
@@ -215,6 +227,8 @@ func _draw_bg() -> void:
 	var ci := _bg_layer
 	if game and game.map:
 		Pen.draw_baked(ci, game.bg)
+		Pen.draw_baked(ci, game.obs_bg)
+		Pen.draw_baked(ci, game.top_bg)
 	else:
 		ci.draw_rect(Rect2(0, 0, W, H), Color("#0b0d20"))
 
@@ -304,6 +318,17 @@ func _draw_world() -> void:
 		bubble.set_corner_radius_all(5)
 		ci.draw_style_box(bubble, Rect2(ep.x + 10, ep.y - 48, 18, 22))
 		text(ci, "!", ep.x + 19, ep.y - 37, 16, Color("#e2262b"))
+	# wild Snorlax napping on the map
+	for o in g.obs:
+		if o.kind == "sleeper":
+			fill_ell(ci, o.x + 3, o.y + 24, 34, 9, Color(0, 0, 0, .25))
+			Art.put_mon(ci, "snorlax", o.x, o.y, 1.55, o.v < .5, 0.0)
+			for i in 3:
+				var zk := fmod(gt * .5 + i / 3.0, 1.0)
+				var zc := Color(1, 1, 1, sin(zk * PI))
+				text(ci, "z" if i % 2 else "Z", o.x + 18 + zk * 18, o.y - 30 - zk * 30, int(10 + zk * 8), zc, true, 3, Color(16 / 255.0, 18 / 255.0, 40 / 255.0, .7 * zc.a))
+	if sel_obs != null and g.obs.has(sel_obs):
+		dashed_circle(ci, Vector2(sel_obs.x, sel_obs.y), sel_obs.r + 8, Color("#ffd23f"), 2.5, 6, 5, -gt * 20)
 	# Pokémon
 	var ts: Array = g.towers.duplicate()
 	ts.sort_custom(func(a, b): return a.y < b.y)

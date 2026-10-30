@@ -4,10 +4,13 @@ This folder is the same game as the web version in the repo root, rebuilt in the
 
 It started as a copy of the web version (the Team Rocket story, the original 8 Pokémon, every Pokéball tier, the 4 Kanto maps, 40 waves plus freeplay) and has since grown past it. The Godot version adds:
 
-- **8 more Pokémon** that unlock as you reach later waves on any map: Magikarp (wave 5), Pidgey (10), Geodude (15), Machop (20), Abra (25), Lapras (30), Snorlax (35) and Dratini (40). Settings has a switch to unlock them all at once.
+- **8 more Pokémon** you have to earn, on Normal or Hard (Easy runs don't count): Magikarp (reach wave 15), Pidgey (wave 25), Geodude (beat a map), Machop (beat 2 different maps), Lapras (beat a map on Hard), Abra (beat 3 maps), Snorlax (beat 4 maps) and Dratini (beat 3 maps on Hard). Settings has a switch to unlock them all at once.
+- **Upgrades always stack.** Evolutions and moves only ever add to a Pokémon, in whatever order you buy them, and the upgrade preview counts nearby Abra auras and Dragon Dance so it never shows a drop.
 - **3 new balls:** Timer Balls speed up the longer they roll, Net Balls shrug off Water, and Heal Balls heal themselves if you stop hitting them.
 - **Type matchups:** Fighting does double damage to Heavy Balls, Electric and Grass do double to Net Balls, Water does half, and Dragon hits the bosses harder. The Pokédex lists them all.
 - **Trainer items** in the side panel: a Potion (+25 HP), Max Repel (every ball slows down for 5 seconds) and Rare Candy (30% off your next upgrade).
+- **4 more maps:** Route 12 (a boardwalk by the sea, with a wild Snorlax asleep in the best spot), Rock Tunnel (pitch dark and packed with boulders), Seafoam Islands (ice blocks and pools) and Victory Road (boulders everywhere, only 40 HP).
+- **Clearing the way:** rocks, trees, boulders, ice blocks and the sleeping Snorlax take up good spots. Tap one to see who can clear it and what it costs: Geodude and Machop smash rocks, Machop moves boulders and uproots trees, Bulbasaur cuts trees, Charmander burns dead trees and melts ice, and Pikachu jolts Snorlax awake. Rocks sometimes hide a Nugget. Only Squirtle, Magikarp and Lapras can stand in water.
 - **Easy, Normal and Hard** for every map, with best waves kept separately.
 - **A livelier look:** Pokémon breathe and hop when they attack, balls roll along the path and break into pieces, big moves shake the screen, and each map has its own ambience (butterflies, fireflies, ghost lights, glinting crystals).
 
