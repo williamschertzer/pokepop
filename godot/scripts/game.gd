@@ -8,6 +8,7 @@ signal sfx(freq: float, dur: float, type: String, vol: float)
 signal ended(win: bool)
 signal info_changed
 signal money_bump
+signal wave_cleared
 
 const W := Data.W
 const H := Data.H
@@ -835,6 +836,37 @@ func wave_done() -> void:
 		ended.emit(true)
 	else:
 		toast.emit("Wave %d cleared. +₽%d%s" % [wave, bonus, (" and ₽%d from Pay Day" % pay) if pay else ""])
+	wave_cleared.emit()
+
+
+## Everything needed to pick a run back up between waves: the map, the wave,
+## money, Pikachu's HP and every Pokémon with its upgrades.
+func snapshot() -> Dictionary:
+	var ts: Array = []
+	for tw in towers:
+		ts.append({"kind": tw.kind, "x": tw.x, "y": tw.y, "a": tw.a, "b": tw.b, "mode": tw.mode, "pops": tw.pops, "spent": tw.spent})
+	return {"map": map.id, "wave": wave, "money": money, "lives": lives, "freeplay": freeplay or won, "towers": ts}
+
+
+func restore(d: Dictionary) -> bool:
+	var m = null
+	for mm in Data.MAPS:
+		if mm.id == d.get("map", ""):
+			m = mm
+	if m == null:
+		return false
+	new_game(m)
+	wave = int(d.wave); money = int(d.money); lives = int(d.lives); freeplay = bool(d.freeplay)
+	for e in d.towers:
+		if not Data.TOWERS.has(e.kind):
+			continue
+		var tw := Tower.new()
+		tw.id = next_id; next_id += 1
+		tw.kind = e.kind; tw.x = float(e.x); tw.y = float(e.y); tw.a = int(e.a); tw.b = int(e.b)
+		tw.mode = e.mode; tw.pops = int(e.pops); tw.spent = int(e.spent); tw.born = t - 1
+		tw.s = Data.compute_stats(tw.kind, tw.a, tw.b)
+		towers.append(tw)
+	return true
 
 
 func game_over() -> void:

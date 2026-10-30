@@ -57,6 +57,17 @@ var _end_primary: Button
 var _hud_tick := 0.0
 var _hud_key := ""
 var _money_tween: Tween
+var _title: Control
+var _title_art: Control
+var _continue_btn: Button
+var _settings: Control
+var _pause_menu: Control
+var _next_box: HFlowContainer
+var _next_key := ""
+var _stat_labels: Array = []
+var _drag_kind := ""
+var _drag_on_field := false
+var _drag_start := Vector2.ZERO
 
 
 # ---------- small widgets ----------
@@ -114,16 +125,80 @@ class MapPreview extends Control:
 
 
 class Lens extends Control:
-	func _init() -> void:
-		custom_minimum_size = Vector2(30, 30)
+	var k := 1.0
+
+	func _init(scale_ := 1.0) -> void:
+		k = scale_
+		custom_minimum_size = Vector2(30, 30) * k
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _draw() -> void:
 		var c := size / 2
-		draw_circle(c, 17, Color("#9c2329"))
-		draw_circle(c, 15, Color.WHITE)
-		draw_circle(c, 12, Color("#1c6aa8"))
-		draw_circle(c, 9.5, Color("#3aa7e8"))
-		draw_circle(c - Vector2(3, 3), 3.5, Color("#bfe9ff"))
+		draw_circle(c, 17 * k, Color("#9c2329"))
+		draw_circle(c, 15 * k, Color.WHITE)
+		draw_circle(c, 12 * k, Color("#1c6aa8"))
+		draw_circle(c, 9.5 * k, Color("#3aa7e8"))
+		draw_circle(c - Vector2(3, 3) * k, 3.5 * k, Color("#bfe9ff"))
+
+
+## Animated backdrop for the title screen: a night sky, the party standing
+## guard and Team Rocket's Pokéballs rolling along the route below them.
+class TitleArt extends Control:
+	const PARTY := ["pikachu", "charmander", "squirtle", "bulbasaur", "gastly", "meowth", "wobbuffet", "mewtwo"]
+	const ROLL := ["poke", "great", "ultra", "poke", "quick", "great", "heavy", "poke", "dusk", "ultra"]
+	var t := 0.0
+
+	func _init() -> void:
+		set_anchors_preset(Control.PRESET_FULL_RECT)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _process(dt: float) -> void:
+		if is_visible_in_tree():
+			t += dt
+			queue_redraw()
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		var gy := h - 150
+		draw_rect(Rect2(0, 0, w, gy), Color("#181b38"))
+		for i in 70:
+			var sx := fposmod(i * 137.5 + 40, w)
+			var sy := fposmod(i * 71.3 + 12, gy - 30)
+			var a := .25 + .25 * sin(t * 1.5 + i * 1.7)
+			draw_circle(Vector2(sx, sy), 1.0 + (i % 3) * .5, Color(1, 1, 1, a))
+		draw_circle(Vector2(w - 150, 92), 38, Color("#f6efc8"))
+		draw_circle(Vector2(w - 136, 84), 34, Color("#181b38"))
+		# Team Rocket's balloon drifting across the sky
+		var bx := fposmod(t * 18 + 260, w + 300) - 150
+		Art.put_ball(self, "rocket", bx, 330 + sin(t * .9) * 12, sin(t * .7) * .05, 1.1)
+		# hills, grass and the route
+		for i in 7:
+			var hx := w * (i / 6.0) + 40
+			draw_circle(Vector2(hx, gy + 70), 110 + (i % 3) * 30, Color("#1f2448") if i % 2 else Color("#262c56"))
+		draw_rect(Rect2(0, gy, w, h - gy), Color("#3f7e3c"))
+		draw_rect(Rect2(0, gy, w, 6), Color("#5aa650"))
+		for i in 40:
+			var tx := fposmod(i * 53.0, w)
+			var ty := gy + 14 + (i * 37) % 40
+			draw_line(Vector2(tx, ty), Vector2(tx - 3, ty - 7), Color("#5aa650"), 2)
+			draw_line(Vector2(tx, ty), Vector2(tx + 3, ty - 7), Color("#5aa650"), 2)
+		var py := gy + 88.0
+		draw_rect(Rect2(0, py - 22, w, 44), Color("#d6b475"))
+		draw_rect(Rect2(0, py - 22, w, 4), Color("#b8955a"))
+		draw_rect(Rect2(0, py + 18, w, 4), Color("#b8955a"))
+		var n := ROLL.size()
+		for i in n:
+			var x := fposmod(t * 60 + i * (w + 120) / n, w + 120) - 60
+			var r: float = Data.BALLS[ROLL[i]].r
+			draw_set_transform(Vector2(x, py + r * .85 - 4), 0, Vector2(1, .35))
+			draw_circle(Vector2.ZERO, r * .8, Color(0, 0, 0, .22))
+			draw_set_transform_matrix(Transform2D.IDENTITY)
+			Art.put_ball(self, ROLL[i], x, py - 4, t * 3 + i, 1.3)
+		for i in PARTY.size():
+			var x := w * (i + .5) / PARTY.size()
+			var hop := absf(sin(t * 2.2 + i * .8)) * 5
+			Art.put_mon(self, PARTY[i], x, gy + 38 - hop, 1.45, i >= PARTY.size() / 2, t + i)
 
 
 ## A panel that behaves like a button, for cards with several lines of text.
@@ -175,10 +250,12 @@ func _ready() -> void:
 	game.ended.connect(_show_end)
 	game.info_changed.connect(_render_info)
 	game.money_bump.connect(_bump_money)
+	game.wave_cleared.connect(_save_run)
+	game.info_changed.connect(_save_run)
 	_build()
 	_render_shop()
 	_render_info()
-	_open_menu()
+	_show_title()
 	get_viewport().size_changed.connect(_layout_check)
 
 
@@ -205,6 +282,9 @@ func _load_fonts() -> void:
 
 var _best := {}
 var _muted := false
+var _volume := 0.8
+var _confirm_release := true
+var _run := {}  # the saved run for Continue, empty when there is none
 
 
 func _load_save() -> void:
@@ -212,13 +292,39 @@ func _load_save() -> void:
 	if cf.load(SAVE_PATH) == OK:
 		_best = cf.get_value("save", "best", {})
 		_muted = cf.get_value("save", "muted", false)
+		_volume = cf.get_value("save", "volume", 0.8)
+		_confirm_release = cf.get_value("save", "confirm_release", true)
+		_run = cf.get_value("save", "run", {})
+	_apply_volume()
 
 
 func _save() -> void:
 	var cf := ConfigFile.new()
 	cf.set_value("save", "best", game.best)
 	cf.set_value("save", "muted", sfx.muted)
+	cf.set_value("save", "volume", _volume)
+	cf.set_value("save", "confirm_release", _confirm_release)
+	cf.set_value("save", "run", _run)
 	cf.save(SAVE_PATH)
+
+
+func _apply_volume() -> void:
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(_volume, .001)))
+	AudioServer.set_bus_mute(0, _volume <= 0.01)
+
+
+## Saves the run so Continue can pick it up. Only between waves, so a run
+## always resumes from a calm moment rather than halfway through a wave.
+func _save_run() -> void:
+	if game.map == null or game.over or game.running:
+		return
+	_run = game.snapshot()
+	_save()
+
+
+func _clear_run() -> void:
+	_run = {}
+	_save()
 
 
 func _layout_check() -> void:
@@ -378,10 +484,11 @@ func _build() -> void:
 	_mute_btn.pressed.connect(_toggle_mute)
 	hrow.add_child(_mute_btn)
 	_mute_btn.text = "Sound off" if sfx.muted else "Sound on"
-	var maps_btn := _btn("Maps", INSET, TEXT, Color("#1c2045"), 9, 7)
-	maps_btn.add_theme_font_size_override("font_size", 12)
-	maps_btn.pressed.connect(_open_menu)
-	hrow.add_child(maps_btn)
+	var menu_btn := _btn("Menu", INSET, TEXT, Color("#1c2045"), 9, 7)
+	menu_btn.add_theme_font_size_override("font_size", 12)
+	menu_btn.tooltip_text = "Pause and open the menu (Esc)"
+	menu_btn.pressed.connect(_open_pause_menu)
+	hrow.add_child(menu_btn)
 
 	# game field
 	var frame := Panel.new()
@@ -455,6 +562,10 @@ func _build() -> void:
 	_auto_chk.add_theme_color_override("font_hover_pressed_color", TEXT)
 	_auto_chk.toggled.connect(func(on): game.auto = on; game.auto_timer = .5)
 	c1v.add_child(_auto_chk)
+	_next_box = HFlowContainer.new()
+	_next_box.add_theme_constant_override("h_separation", 4)
+	_next_box.add_theme_constant_override("v_separation", 2)
+	c1v.add_child(_next_box)
 
 	var c2 := _card()
 	side.add_child(c2)
@@ -477,8 +588,11 @@ func _build() -> void:
 	_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc3.add_child(_info_box)
 
+	_build_pause_menu()
 	_build_menu()
 	_build_end()
+	_build_title()
+	_build_settings()
 
 
 func _build_menu() -> void:
@@ -503,6 +617,10 @@ func _build_menu() -> void:
 	sc.add_child(m)
 	var v := _vbox(18)
 	m.add_child(v)
+	var back := _btn("‹ Back", PANEL2, TEXT, Color("#3a4280"), 10, 8)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	back.pressed.connect(_menu_back)
+	v.add_child(back)
 	var top := _vbox(4)
 	top.add_child(_caps("Prepare for trouble", GOLD, 10))
 	var h := RichTextLabel.new()
@@ -555,7 +673,7 @@ func _build_menu() -> void:
 		pv.add_child(tl)
 		p.add_child(pv)
 		how.add_child(p)
-	var help := _lbl("Keys: 1 to 8 pick a Pokémon, Space starts a wave, F changes speed, Esc cancels. On a touch screen, tap a spot to preview and tap it again to place.", 12.5, MUTED, f_light, true)
+	var help := _lbl("Drag a Pokémon from your Party onto the map, or click it and then click the map. Keys: 1 to 8 pick a Pokémon, Space starts a wave, F changes speed, P pauses, Esc cancels or opens the menu. On a touch screen you can also tap a spot to preview and tap it again to place.", 12.5, MUTED, f_light, true)
 	v.add_child(help)
 
 
@@ -591,8 +709,235 @@ func _build_end() -> void:
 	row.add_child(maps)
 
 
+func _overlay(parent: Node, dim_alpha: float) -> Control:
+	var o := Control.new()
+	o.set_anchors_preset(Control.PRESET_FULL_RECT)
+	o.mouse_filter = Control.MOUSE_FILTER_STOP
+	o.visible = false
+	parent.add_child(o)
+	var dim := ColorRect.new()
+	dim.color = Color(10 / 255.0, 12 / 255.0, 32 / 255.0, dim_alpha)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	o.add_child(dim)
+	return o
+
+
+func _menu_btn(text: String, primary := false) -> Button:
+	var b := _btn(text, GREEN, Color("#0d2a18"), Color("#7be3a2"), 12, 12) if primary else _btn(text, PANEL2, TEXT, Color("#3a4280"), 12, 12)
+	b.add_theme_font_size_override("font_size", 17)
+	b.custom_minimum_size = Vector2(300, 50)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	return b
+
+
+## Makes a button ask "Tap again" first, for things that can't be undone.
+func _two_tap(b: Button, confirm_text: String, action: Callable) -> void:
+	var normal_text := b.text
+	b.pressed.connect(func():
+		if b.has_meta("armed"):
+			b.remove_meta("armed")
+			b.text = normal_text
+			action.call()
+			return
+		b.set_meta("armed", true)
+		b.text = confirm_text
+		get_tree().create_timer(3.0).timeout.connect(func():
+			if is_instance_valid(b) and b.has_meta("armed"):
+				b.remove_meta("armed")
+				b.text = normal_text))
+
+
+# ---------- title screen ----------
+func _build_title() -> void:
+	_title = Control.new()
+	_title.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_title.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_title)
+	_title_art = TitleArt.new()
+	_title.add_child(_title_art)
+	var v := _vbox(12)
+	v.position = Vector2(290, 96)
+	v.size = Vector2(700, 0)
+	_title.add_child(v)
+	var logo := _hbox(16)
+	logo.alignment = BoxContainer.ALIGNMENT_CENTER
+	var lens := Lens.new(2.2)
+	lens.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	logo.add_child(lens)
+	var name_lbl := _lbl("PokéPop Defense", 58, Color.WHITE, f_disp_b)
+	name_lbl.add_theme_color_override("font_shadow_color", RED_DEEP)
+	name_lbl.add_theme_constant_override("shadow_offset_y", 4)
+	name_lbl.add_theme_constant_override("shadow_offset_x", 0)
+	name_lbl.add_theme_color_override("font_outline_color", RED)
+	name_lbl.add_theme_constant_override("outline_size", 10)
+	logo.add_child(name_lbl)
+	v.add_child(logo)
+	var sub := _lbl("Team Rocket wants Ash's Pikachu. Pop every Pokéball before it reaches him.", 16, MUTED, f_light, true)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.custom_minimum_size.x = 700
+	v.add_child(sub)
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 14
+	v.add_child(gap)
+	_continue_btn = _menu_btn("Continue", true)
+	_continue_btn.pressed.connect(_continue)
+	v.add_child(_continue_btn)
+	var play := _menu_btn("New game")
+	play.pressed.connect(_open_menu)
+	v.add_child(play)
+	var settings := _menu_btn("Settings")
+	settings.pressed.connect(func(): _settings.visible = true)
+	v.add_child(settings)
+
+
+func _has_live_run() -> bool:
+	return game.map != null and not game.over and not (game.won and not game.freeplay)
+
+
+func _show_title() -> void:
+	var info := {}
+	if _has_live_run():
+		info = {"map": game.map.id, "wave": game.wave, "running": game.running}
+	elif not _run.is_empty():
+		info = _run
+	_continue_btn.visible = not info.is_empty()
+	if not info.is_empty():
+		var map_name := ""
+		for m in Data.MAPS:
+			if m.id == info.map:
+				map_name = m.name
+		var n: int = info.wave if info.get("running", false) else info.wave + 1
+		_continue_btn.text = "Continue: %s, wave %d" % [map_name, n]
+	_menu.visible = false
+	_end.visible = false
+	_title.visible = true
+
+
+func _continue() -> void:
+	_title.visible = false
+	if _has_live_run():
+		game.paused = false
+	elif game.restore(_run):
+		_after_map_loaded()
+		_show_toast("Welcome back! Wave %d is next." % (game.wave + 1))
+	_update_hud(true)
+
+
+# ---------- settings ----------
+func _build_settings() -> void:
+	_settings = _overlay(self, .8)
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_settings.add_child(cc)
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", _sb(PANEL, 16, 24, 2, LINE))
+	cc.add_child(card)
+	var v := _vbox(16)
+	v.custom_minimum_size.x = 380
+	card.add_child(v)
+	v.add_child(_lbl("Settings", 26, TEXT, f_disp_b))
+
+	var vol := _vbox(6)
+	var vh := _hbox(8)
+	var vcap := _caps("Sound volume", MUTED, 11)
+	vcap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vh.add_child(vcap)
+	var vval := _lbl("%d%%" % int(round(_volume * 100)), 13, TEXT, f_bold)
+	vh.add_child(vval)
+	vol.add_child(vh)
+	var slider := HSlider.new()
+	slider.min_value = 0
+	slider.max_value = 100
+	slider.step = 5
+	slider.value = round(_volume * 100)
+	slider.focus_mode = Control.FOCUS_NONE
+	slider.custom_minimum_size.y = 24
+	var track := _sb(INSET, 4, 0)
+	track.content_margin_top = 4
+	track.content_margin_bottom = 4
+	slider.add_theme_stylebox_override("slider", track)
+	slider.add_theme_stylebox_override("grabber_area", _sb(GOLD, 4, 0))
+	slider.add_theme_stylebox_override("grabber_area_highlight", _sb(GOLD, 4, 0))
+	slider.value_changed.connect(func(val: float):
+		_volume = val / 100.0
+		_apply_volume()
+		vval.text = "%d%%" % int(val)
+		sfx.blip(880, .05, "square", .03))
+	slider.drag_ended.connect(func(_c): _save())
+	vol.add_child(slider)
+	v.add_child(vol)
+
+	var chk := CheckBox.new()
+	chk.text = "Ask before releasing a Pokémon"
+	chk.focus_mode = Control.FOCUS_NONE
+	chk.button_pressed = _confirm_release
+	chk.add_theme_font_size_override("font_size", 14)
+	for st in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		chk.add_theme_color_override(st, TEXT)
+	chk.toggled.connect(func(on): _confirm_release = on; _save())
+	v.add_child(chk)
+
+	var reset := _btn("Reset best waves and saved game", Color(0, 0, 0, 0), Color("#ffb3b3"), Color(0, 0, 0, 0), 10, 10)
+	reset.add_theme_stylebox_override("normal", _sb(Color(0, 0, 0, 0), 10, 10, 2, LINE))
+	reset.add_theme_stylebox_override("hover", _sb(Color(0, 0, 0, 0), 10, 10, 2, BAD))
+	_two_tap(reset, "Tap again to erase your progress", func():
+		game.best = {}
+		_run = {}
+		_save()
+		if _title.visible:
+			_show_title()
+		_show_toast("Progress reset."))
+	v.add_child(reset)
+
+	var done := _btn("Done", GREEN, Color("#0d2a18"), Color("#7be3a2"), 10, 10)
+	done.pressed.connect(func(): _settings.visible = false)
+	v.add_child(done)
+
+
+# ---------- pause menu ----------
+func _build_pause_menu() -> void:
+	_pause_menu = Control.new()
+	_pause_menu.position = Vector2(12, 68)
+	_pause_menu.size = Vector2(966, 606)
+	_pause_menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	_pause_menu.visible = false
+	add_child(_pause_menu)
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_pause_menu.add_child(cc)
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", _sb(Color(22 / 255.0, 25 / 255.0, 54 / 255.0, .97), 16, 22, 2, LINE))
+	cc.add_child(card)
+	var v := _vbox(10)
+	card.add_child(v)
+	var t := _lbl("Paused", 32, TEXT, f_disp_b)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t)
+	var resume := _menu_btn("Resume", true)
+	resume.pressed.connect(_toggle_pause)
+	v.add_child(resume)
+	var restart := _menu_btn("Restart this map")
+	_two_tap(restart, "Tap again to restart", func(): _start_map(game.map))
+	v.add_child(restart)
+	var maps := _menu_btn("Change map")
+	maps.pressed.connect(_open_menu)
+	v.add_child(maps)
+	var settings := _menu_btn("Settings")
+	settings.pressed.connect(func(): _settings.visible = true)
+	v.add_child(settings)
+	var home := _menu_btn("Main menu")
+	home.pressed.connect(_show_title)
+	v.add_child(home)
+
+
+func _open_pause_menu() -> void:
+	if game.map and not game.over and not game.paused:
+		_toggle_pause()
+
+
 # ---------- menu ----------
 func _open_menu() -> void:
+	_title.visible = false
 	_clear(_maps_grid)
 	for m in Data.MAPS:
 		var path := MapArt.build_path(m.path)
@@ -623,6 +968,8 @@ func _open_menu() -> void:
 		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(sp)
 		var bw: int = game.best.get(m.id, 0)
+		if bw >= 40:
+			row.add_child(_pill("Cleared", GOLD, Color("#2b2200"), 10))
 		row.add_child(_lbl("Best: wave %d" % bw if bw else "%d lives" % m.lives, 12, MUTED, f_light))
 		var rm := MarginContainer.new()
 		rm.add_theme_constant_override("margin_top", 6)
@@ -633,8 +980,21 @@ func _open_menu() -> void:
 	_menu.visible = true
 
 
+func _menu_back() -> void:
+	if _has_live_run():
+		_menu.visible = false
+	else:
+		_show_title()
+
+
 func _start_map(m: Dictionary) -> void:
 	game.new_game(m)
+	_after_map_loaded()
+	_save_run()
+
+
+func _after_map_loaded() -> void:
+	var m: Dictionary = game.map
 	stage.placing = ""
 	stage.ghost = null
 	stage.selected = null
@@ -649,6 +1009,8 @@ func _start_map(m: Dictionary) -> void:
 
 # ---------- end screen ----------
 func _show_end(win: bool) -> void:
+	if not win:
+		_run = {}
 	_save()
 	_end.visible = true
 	if win:
@@ -708,6 +1070,11 @@ func _update_hud(force := false) -> void:
 	_lives_lbl.text = str(game.lives)
 	_money_lbl.text = "₽%d" % game.money
 	_wave_lbl.text = "%d/40" % game.wave
+	_pause_menu.visible = game.paused and game.map != null and not game.over
+	var nk := "%d|%s|%s|%s" % [game.wave, game.running, game.freeplay, game.map != null]
+	if nk != _next_key:
+		_next_key = nk
+		_render_next()
 	if game.running:
 		_play_btn.text = "Wave %d in progress" % game.wave
 		_play_btn.disabled = true
@@ -741,12 +1108,42 @@ func _update_hud(force := false) -> void:
 
 
 func _process(dt: float) -> void:
-	if not _menu.visible:
+	if not _menu.visible and not _title.visible:
 		game.frame(dt)
 	_hud_tick += dt
 	if _hud_tick > .1:
 		_hud_tick = 0
 		_update_hud()
+
+
+## Shows which balls the next wave (or the current one) brings.
+func _render_next() -> void:
+	_clear(_next_box)
+	if game.map == null:
+		return
+	if game.wave == 40 and not game.freeplay and not game.running:
+		_next_box.add_child(_caps("All 40 waves cleared", GOLD, 10))
+		return
+	var n := game.wave if game.running else game.wave + 1
+	var cap := _caps(("Wave %d:" if game.running else "Next, wave %d:") % n, MUTED, 10)
+	cap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_next_box.add_child(cap)
+	var counts := {}
+	var order: Array = []
+	for g in Data.wave_groups(n):
+		if not counts.has(g[0]):
+			counts[g[0]] = 0
+			order.append(g[0])
+		counts[g[0]] += g[1]
+	for t in order:
+		var cell := _hbox(1)
+		cell.tooltip_text = Data.BALLS[t].name
+		cell.mouse_filter = Control.MOUSE_FILTER_PASS
+		cell.add_child(BallIcon.new(t))
+		var cl := _lbl("×%d" % counts[t], 12, TEXT, f_bold)
+		cl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		cell.add_child(cl)
+		_next_box.add_child(cell)
 
 
 # ---------- shop ----------
@@ -787,6 +1184,7 @@ func _render_shop() -> void:
 		v.add_child(cl)
 		b.add_child(v)
 		b.pressed.connect(_select_kind.bind(k))
+		b.button_down.connect(_begin_drag.bind(k))
 		_shop_grid.add_child(b)
 		_shop_buttons[k] = b
 	_update_hud(true)
@@ -805,6 +1203,44 @@ func _select_kind(k: String) -> void:
 		_show_toast("Place %s next to the path" % Data.TOWERS[k].name)
 
 
+## Dragging a Pokémon from the Party onto the field places it where it's dropped.
+func _begin_drag(k: String) -> void:
+	if game.map == null or game.money < Data.TOWERS[k].cost:
+		return
+	_drag_kind = k
+	_drag_on_field = false
+	_drag_start = get_global_mouse_position()
+
+
+func _input(e: InputEvent) -> void:
+	if _drag_kind == "":
+		return
+	if e is InputEventMouseMotion:
+		var p := stage.get_local_mouse_position()
+		var inside := Rect2(Vector2.ZERO, stage.size).has_point(p)
+		if not _drag_on_field and inside and get_global_mouse_position().distance_to(_drag_start) > 16:
+			_drag_on_field = true
+			stage.placing = _drag_kind
+			stage.selected = null
+			stage.ghost_touch = false
+			_render_info()
+		if _drag_on_field:
+			# lift the preview above a finger so it stays visible
+			var lift := Vector2(0, -44) if e.device == InputEvent.DEVICE_ID_EMULATION else Vector2.ZERO
+			stage.ghost = p + lift if inside else null
+	elif e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
+		_drag_kind = ""
+		if not _drag_on_field:
+			return
+		_drag_on_field = false
+		if stage.ghost != null:
+			_try_place(stage.ghost.x, stage.ghost.y, false)
+		else:
+			stage.placing = ""
+			_render_info()
+		_render_shop()
+
+
 func _try_place(x: float, y: float, keep: bool) -> void:
 	var k := stage.placing
 	var d: Dictionary = Data.TOWERS[k]
@@ -815,6 +1251,7 @@ func _try_place(x: float, y: float, keep: bool) -> void:
 		_show_toast("Can't place there. Keep off the path and obstacles.")
 		return
 	var tw := game.place_tower(k, x, y)
+	_save_run()
 	stage.ghost_touch = false
 	if not keep or game.money < d.cost:
 		stage.placing = ""
@@ -858,7 +1295,7 @@ func _render_side() -> void:
 		var a_names: Array = d.A.map(func(u): return u.name.replace("Evolve: ", ""))
 		var b_names: Array = d.B.map(func(u): return u.name)
 		_info_box.add_child(_lbl("%s: %s. %s: %s." % [names[0], ", ".join(a_names), names[1], ", ".join(b_names)], 12.5, MUTED, f_light, true))
-		_info_box.add_child(_lbl("Click the map to place it. Esc cancels.", 12.5, MUTED, f_light, true))
+		_info_box.add_child(_lbl("Click the map to place it, or drag it there from the Party. Esc cancels.", 12.5, MUTED, f_light, true))
 	else:
 		_info_box.add_child(_lbl("Team Rocket's Pokéballs", 15, Color.WHITE, f_disp))
 		_info_box.add_child(_lbl("Stronger balls have higher catch rates. Each hit knocks a ball down a tier until it pops.", 12.5, MUTED, f_light, true))
@@ -879,10 +1316,13 @@ func _render_side() -> void:
 			_info_box.add_child(row)
 
 
-func _stats_for(tw) -> Array:
-	var s: Dictionary = tw.s
+func _stats_for(kind: String, s: Dictionary) -> Array:
 	var sp := "%.1f/s" % (1.0 / s.rate) if s.rate else "None"
-	match tw.kind:
+	return _stats_main(kind, s, sp) + [[s.range, "Range"]]
+
+
+func _stats_main(kind: String, s: Dictionary, sp: String) -> Array:
+	match kind:
 		"pikachu": return [[s.dmg, "Damage"], [sp, "Speed"], [s.chain, "Chain"]]
 		"charmander": return [[s.dmg, "Damage"], [sp, "Speed"], [s.pierce, "Hits"]]
 		"squirtle": return [[s.dmg, "Damage"], [sp, "Speed"], [s.jets, "Jets"]]
@@ -941,7 +1381,8 @@ func _render_sheet() -> void:
 	_sheet_box.add_child(head)
 
 	var stats := _hbox(6)
-	for st in _stats_for(tw):
+	_stat_labels.clear()
+	for st in _stats_for(tw.kind, tw.s):
 		var p := PanelContainer.new()
 		p.add_theme_stylebox_override("panel", _sb(INSET, 8, 5))
 		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -949,6 +1390,7 @@ func _render_sheet() -> void:
 		var vl := _lbl(_num(st[0]), 14, TEXT, f_bold)
 		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		pv.add_child(vl)
+		_stat_labels.append(vl)
 		var ll := _caps(st[1], MUTED, 9)
 		ll.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		pv.add_child(ll)
@@ -1008,6 +1450,8 @@ func _render_sheet() -> void:
 			card_n.border_color = Color(LINE, .7)
 		else:
 			card.pressed.connect(func(): game.upgrade(tw, pkey))
+			card.mouse_entered.connect(_preview_upgrade.bind(tw, pkey))
+			card.mouse_exited.connect(_preview_upgrade.bind(tw, ""))
 			_cost_widgets.append([card, list[tier].cost, cost_lbl])
 		col.add_child(card)
 		cols.add_child(col)
@@ -1059,9 +1503,35 @@ func _render_sheet() -> void:
 	var sell := _btn("Release for ₽%d" % game.sell_value(tw), Color(0, 0, 0, 0), Color("#ffb3b3"), Color(0, 0, 0, 0), 10, 8)
 	sell.add_theme_stylebox_override("normal", _sb(Color(0, 0, 0, 0), 10, 8, 2, LINE))
 	sell.add_theme_stylebox_override("hover", _sb(Color(0, 0, 0, 0), 10, 8, 2, BAD))
-	sell.pressed.connect(func(): stage.selected = null; game.sell(tw))
+	var release := func(): stage.selected = null; game.sell(tw)
+	if _confirm_release:
+		_two_tap(sell, "Tap again to release", release)
+	else:
+		sell.pressed.connect(release)
 	_sheet_box.add_child(sell)
 	_update_hud(true)
+
+
+## While hovering an upgrade, the stat boxes show what it changes ("2 › 3").
+func _preview_upgrade(tw, p: String) -> void:
+	var cur := _stats_for(tw.kind, tw.s)
+	var nxt := cur
+	if p != "":
+		nxt = _stats_for(tw.kind, Data.compute_stats(tw.kind, tw.a + int(p == "a"), tw.b + int(p == "b")))
+	for i in mini(_stat_labels.size(), cur.size()):
+		var l: Label = _stat_labels[i]
+		if not is_instance_valid(l):
+			continue
+		var before := _num(cur[i][0])
+		var after := _num(nxt[i][0])
+		if before == after:
+			l.text = before
+			l.add_theme_color_override("font_color", TEXT)
+			l.add_theme_font_size_override("font_size", 14)
+		else:
+			l.text = "%s › %s" % [before, after]
+			l.add_theme_color_override("font_color", GREEN)
+			l.add_theme_font_size_override("font_size", 13)
 
 
 # ---------- controls ----------
@@ -1071,6 +1541,8 @@ func _cycle_speed() -> void:
 
 
 func _toggle_pause() -> void:
+	if game.map == null or game.over:
+		return
 	game.paused = not game.paused
 	_update_hud(true)
 
@@ -1085,17 +1557,13 @@ func _unhandled_input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo):
 		return
 	var key: int = e.keycode
-	if _menu.visible or _end.visible:
-		if key == KEY_ESCAPE and game.map and _menu.visible:
-			_menu.visible = false
+	if key == KEY_ESCAPE:
+		_back()
+		get_viewport().set_input_as_handled()
+		return
+	if _title.visible or _menu.visible or _end.visible or _settings.visible:
 		return
 	match key:
-		KEY_ESCAPE:
-			stage.placing = ""
-			stage.ghost = null
-			stage.selected = null
-			_render_shop()
-			_render_info()
 		KEY_SPACE:
 			game.start_wave()
 			_update_hud(true)
@@ -1109,27 +1577,32 @@ func _unhandled_input(e: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
+## Esc and the Android back button: close whatever is on top, otherwise pause.
+func _back() -> void:
+	if _settings.visible:
+		_settings.visible = false
+	elif _title.visible or _end.visible:
+		pass
+	elif _menu.visible:
+		_menu_back()
+	elif stage.placing != "" or stage.selected:
+		stage.placing = ""
+		stage.ghost = null
+		stage.selected = null
+		_render_shop()
+		_render_info()
+	else:
+		_toggle_pause()
+
+
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_save()
 	elif what == NOTIFICATION_APPLICATION_PAUSED:
 		# phone app sent to the background: save and pause the wave
 		_save()
-		if game.map and not game.over:
+		if game.map and not game.over and not _title.visible:
 			game.paused = true
 			_update_hud(true)
 	elif what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		# Android back button: close what's open, otherwise show the map picker
-		if _end.visible:
-			return
-		if stage.placing != "" or stage.selected:
-			stage.placing = ""
-			stage.ghost = null
-			stage.selected = null
-			_render_shop()
-			_render_info()
-		elif _menu.visible:
-			if game.map:
-				_menu.visible = false
-		else:
-			_open_menu()
+		_back()
