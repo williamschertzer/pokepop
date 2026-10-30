@@ -1599,7 +1599,7 @@ func _render_obstacle() -> void:
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tv.add_child(_lbl(Data.TOWERS[k].name, 12.5, TEXT, f_bold))
 		var on_field := have.any(func(tw): return tw.kind == k)
-		var state := "On the field" if on_field else ("Not placed yet" if _unlocked(k) else "Locked until wave %d" % Data.UNLOCK.get(k, 0))
+		var state := "On the field" if on_field else ("Not placed yet" if _unlocked(k) else "Not unlocked yet")
 		tv.add_child(_lbl("%s · %s" % [od.by[k], state], 11.5, GOLD if on_field else MUTED, f_light, true))
 		row.add_child(tv)
 		_obs_box.add_child(row)
