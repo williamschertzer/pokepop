@@ -9,6 +9,7 @@ signal ended(win: bool)
 signal info_changed
 signal money_bump
 signal wave_cleared
+signal obstacles_changed
 
 const W := Data.W
 const H := Data.H
@@ -74,7 +75,10 @@ var map = null
 var path: Dictionary
 var obs: Array = []
 var deco: Array = []
-var bg: Array = []
+var bg: Array = []  # ground, path and obstacles that stay
+var obs_bg: Array = []  # obstacles a Pokémon can clear
+var top_bg: Array = []  # signs and shading over everything
+var cleared: Array = []  # ids of obstacles cleared this run
 var start_pt := Vector2.ZERO
 var end_pt := Vector2.ZERO
 var money := 0
@@ -118,7 +122,11 @@ func setup_map(m: Dictionary) -> void:
 	var o := MapArt.gen_obstacles(m, path)
 	obs = o.obs
 	deco = o.deco
-	bg = MapArt.render_bg(m, path, obs, deco)
+	var layers := MapArt.render_layers(m, path, obs, deco)
+	bg = layers.base
+	obs_bg = layers.obs
+	top_bg = layers.top
+	cleared = []
 	var d: float = path.total
 	while d > 0:
 		var p := MapArt.pos_at(path, d)
@@ -351,6 +359,8 @@ func can_place(kind: String, x: float, y: float) -> bool:
 		return true
 	if MapArt.dist_to_path(path, x, y) < 36:
 		return false
+	if MapArt.in_water(map, x, y) and not Data.SWIMMERS.has(kind):
+		return false
 	for o in obs:
 		if Vector2(o.x - x, o.y - y).length() < o.r + 12:
 			return false
@@ -358,6 +368,84 @@ func can_place(kind: String, x: float, y: float) -> bool:
 		if Vector2(tw.x - x, tw.y - y).length() < 32:
 			return false
 	return true
+
+
+## Why a Pokémon can't go here, in words, or "" if it can.
+func place_hint(kind: String, x: float, y: float) -> String:
+	if can_place(kind, x, y):
+		return ""
+	if not Data.TOWERS[kind].get("onPath", false):
+		if MapArt.in_water(map, x, y) and not Data.SWIMMERS.has(kind) and MapArt.dist_to_path(path, x, y) >= 36:
+			return "Only Squirtle, Magikarp and Lapras can swim. Put %s on dry land." % Data.TOWERS[kind].name
+		var o = obstacle_at(x, y, 12)
+		if o != null and Data.OBSTACLES.has(o.kind):
+			return "A %s is in the way. Tap it to see who can clear it." % Data.OBSTACLES[o.kind].name.to_lower()
+	return "Can't place there. Keep off the path and obstacles."
+
+
+# ---------- obstacles ----------
+func obstacle_at(x: float, y: float, pad := 0.0):
+	var best = null
+	var best_d := 1e9
+	for o in obs:
+		var d := Vector2(o.x - x, o.y - y).length()
+		if d < o.r + pad and d < best_d:
+			best = o
+			best_d = d
+	return best
+
+
+## Pokémon on the field that can clear this obstacle.
+func clearers(o: Dictionary) -> Array:
+	var out: Array = []
+	var by: Dictionary = Data.OBSTACLES[o.kind].by
+	for tw in towers:
+		if by.has(tw.kind):
+			out.append(tw)
+	return out
+
+
+## Clears an obstacle with the nearest Pokémon able to. Returns "" on success,
+## otherwise the reason it can't.
+func clear_obstacle(o: Dictionary) -> String:
+	if not Data.OBSTACLES.has(o.kind) or not obs.has(o):
+		return "That can't be moved."
+	var od: Dictionary = Data.OBSTACLES[o.kind]
+	var who := clearers(o)
+	if who.is_empty():
+		var names: Array = od.by.keys().map(func(k): return Data.TOWERS[k].name)
+		return "You need %s on the field to clear this." % " or ".join(names)
+	if money < od.cost:
+		return "Need ₽%d more to clear this." % (od.cost - money)
+	who.sort_custom(func(a, b): return Vector2(a.x - o.x, a.y - o.y).length() < Vector2(b.x - o.x, b.y - o.y).length())
+	var tw = who[0]
+	money -= od.cost
+	_remove_obstacle(o)
+	tw.face = 1 if o.x >= tw.x else -1
+	var mon: String = Art.SPRITE_INFO[Data.sprite_for(tw.kind, tw.a)].name
+	fx.append({"kind": "text", "x": o.x, "y": o.y - o.r - 14, "text": "%s used %s!" % [mon, od.by[tw.kind]], "col": Color.WHITE, "life": 1.4, "max": 1.4})
+	fx.append({"kind": "ring", "x": o.x, "y": o.y, "r": 6, "to": o.r + 26, "life": .4, "max": .4, "col": Color.WHITE, "w": 4})
+	var cols := {"tree": "#2f8a3c", "pine": "#1d5a2c", "deadtree": "#3b2f45", "rock": "#8a7b6b", "boulder": "#7d6f62", "ice": "#bfeaff", "sleeper": "#2f6f7a"}
+	for i in 16:
+		var a := randf() * TAU
+		var v := 50 + randf() * 110
+		parts.append({"x": o.x, "y": o.y, "vx": cos(a) * v, "vy": sin(a) * v - 40, "life": .5, "max": .5, "col": Color(cols.get(o.kind, "#ffffff")), "size": 3.0, "shard": i < 8})
+	shake = maxf(shake, 4)
+	sfx.emit(140, .18, "square", .05)
+	var find: int = od.get("find", 0)
+	if find and o.v >= 1.0 - od.get("chance", 1.0):
+		money += find
+		fx.append({"kind": "text", "x": o.x, "y": o.y - o.r - 34, "text": "Found ₽%d!" % find, "col": Color("#ffd23f"), "life": 1.8, "max": 1.8, "big": true})
+		sfx.emit(1046, .12, "triangle", .05)
+	money_bump.emit()
+	return ""
+
+
+func _remove_obstacle(o: Dictionary) -> void:
+	obs.erase(o)
+	cleared.append(o.id)
+	obs_bg = MapArt.render_obstacles(obs)
+	obstacles_changed.emit()
 
 
 func place_tower(kind: String, x: float, y: float) -> Tower:
@@ -1402,7 +1490,7 @@ func snapshot() -> Dictionary:
 	var ts: Array = []
 	for tw in towers:
 		ts.append({"kind": tw.kind, "x": tw.x, "y": tw.y, "a": tw.a, "b": tw.b, "mode": tw.mode, "pops": tw.pops, "spent": tw.spent, "danced": tw.danced})
-	return {"map": map.id, "diff": diff, "wave": wave, "money": money, "lives": lives, "start_lives": start_lives, "freeplay": freeplay or won, "towers": ts, "items": item_uses.duplicate(), "candy": candy}
+	return {"map": map.id, "diff": diff, "wave": wave, "money": money, "lives": lives, "start_lives": start_lives, "freeplay": freeplay or won, "towers": ts, "items": item_uses.duplicate(), "candy": candy, "cleared": cleared.duplicate()}
 
 
 func restore(d: Dictionary) -> bool:
@@ -1417,6 +1505,11 @@ func restore(d: Dictionary) -> bool:
 	start_lives = int(d.get("start_lives", start_lives))
 	item_uses = d.get("items", {}).duplicate()
 	candy = bool(d.get("candy", false))
+	for id in d.get("cleared", []):
+		for o in obs:
+			if o.id == int(id):
+				_remove_obstacle(o)
+				break
 	for e in d.towers:
 		if not Data.TOWERS.has(e.kind):
 			continue

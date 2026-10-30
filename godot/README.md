@@ -8,6 +8,8 @@ It started as a copy of the web version (the Team Rocket story, the original 8 P
 - **3 new balls:** Timer Balls speed up the longer they roll, Net Balls shrug off Water, and Heal Balls heal themselves if you stop hitting them.
 - **Type matchups:** Fighting does double damage to Heavy Balls, Electric and Grass do double to Net Balls, Water does half, and Dragon hits the bosses harder. The Pokédex lists them all.
 - **Trainer items** in the side panel: a Potion (+25 HP), Max Repel (every ball slows down for 5 seconds) and Rare Candy (30% off your next upgrade).
+- **4 more maps:** Route 12 (a boardwalk by the sea, with a wild Snorlax asleep in the best spot), Rock Tunnel (pitch dark and packed with boulders), Seafoam Islands (ice blocks and pools) and Victory Road (boulders everywhere, only 40 HP).
+- **Clearing the way:** rocks, trees, boulders, ice blocks and the sleeping Snorlax take up good spots. Tap one to see who can clear it and what it costs: Geodude and Machop smash rocks, Machop moves boulders and uproots trees, Bulbasaur cuts trees, Charmander burns dead trees and melts ice, and Pikachu jolts Snorlax awake. Rocks sometimes hide a Nugget. Only Squirtle, Magikarp and Lapras can stand in water.
 - **Easy, Normal and Hard** for every map, with best waves kept separately.
 - **A livelier look:** Pokémon breathe and hop when they attack, balls roll along the path and break into pieces, big moves shake the screen, and each map has its own ambience (butterflies, fireflies, ghost lights, glinting crystals).
 
