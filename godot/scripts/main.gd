@@ -68,6 +68,11 @@ var _stat_labels: Array = []
 var _drag_kind := ""
 var _drag_on_field := false
 var _drag_start := Vector2.ZERO
+var _diff_box: HBoxContainer
+var _items_box: HBoxContainer
+var _item_buttons := {}
+var _dex: Control
+var _dex_box: VBoxContainer
 
 
 # ---------- small widgets ----------
@@ -245,12 +250,13 @@ func _ready() -> void:
 	add_child(sfx)
 	sfx.muted = _muted
 	game.best = _best
+	_seen_best = _best_any()
 	game.toast.connect(_show_toast)
 	game.sfx.connect(func(f, d, ty, v): sfx.blip(f, d, ty, v))
 	game.ended.connect(_show_end)
 	game.info_changed.connect(_render_info)
 	game.money_bump.connect(_bump_money)
-	game.wave_cleared.connect(_save_run)
+	game.wave_cleared.connect(_on_wave_cleared)
 	game.info_changed.connect(_save_run)
 	_build()
 	_render_shop()
@@ -285,6 +291,9 @@ var _muted := false
 var _volume := 0.8
 var _confirm_release := true
 var _run := {}  # the saved run for Continue, empty when there is none
+var _diff := "normal"
+var _unlock_all := false
+var _seen_best := 0  # best wave already announced, to spot new unlocks
 
 
 func _load_save() -> void:
@@ -295,6 +304,8 @@ func _load_save() -> void:
 		_volume = cf.get_value("save", "volume", 0.8)
 		_confirm_release = cf.get_value("save", "confirm_release", true)
 		_run = cf.get_value("save", "run", {})
+		_diff = cf.get_value("save", "diff", "normal")
+		_unlock_all = cf.get_value("save", "unlock_all", false)
 	_apply_volume()
 
 
@@ -305,7 +316,21 @@ func _save() -> void:
 	cf.set_value("save", "volume", _volume)
 	cf.set_value("save", "confirm_release", _confirm_release)
 	cf.set_value("save", "run", _run)
+	cf.set_value("save", "diff", _diff)
+	cf.set_value("save", "unlock_all", _unlock_all)
 	cf.save(SAVE_PATH)
+
+
+## The furthest wave reached on any map, at any difficulty.
+func _best_any() -> int:
+	var m := 0
+	for k in game.best:
+		m = maxi(m, int(game.best[k]))
+	return m
+
+
+func _unlocked(k: String) -> bool:
+	return _unlock_all or not Data.UNLOCK.has(k) or _best_any() >= Data.UNLOCK[k]
 
 
 func _apply_volume() -> void:
@@ -320,6 +345,16 @@ func _save_run() -> void:
 		return
 	_run = game.snapshot()
 	_save()
+
+
+func _on_wave_cleared() -> void:
+	_save_run()
+	var now := _best_any()
+	for k in Data.UNLOCK:
+		if not _unlock_all and Data.UNLOCK[k] > _seen_best and Data.UNLOCK[k] <= now:
+			_show_toast("New Pokémon unlocked: %s! Find it in your Party." % Data.TOWERS[k].name)
+			_render_shop()
+	_seen_best = now
 
 
 func _clear_run() -> void:
@@ -562,6 +597,16 @@ func _build() -> void:
 	_auto_chk.add_theme_color_override("font_hover_pressed_color", TEXT)
 	_auto_chk.toggled.connect(func(on): game.auto = on; game.auto_timer = .5)
 	c1v.add_child(_auto_chk)
+	_items_box = _hbox(5)
+	c1v.add_child(_items_box)
+	for id in ["potion", "repel", "candy"]:
+		var it: Dictionary = Data.ITEMS[id]
+		var ib := _btn(it.name, INSET, TEXT, Color("#1c2045"), 8, 5)
+		ib.add_theme_font_size_override("font_size", 11)
+		ib.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ib.pressed.connect(_use_item.bind(id))
+		_items_box.add_child(ib)
+		_item_buttons[id] = ib
 	_next_box = HFlowContainer.new()
 	_next_box.add_theme_constant_override("h_separation", 4)
 	_next_box.add_theme_constant_override("v_separation", 2)
@@ -592,6 +637,7 @@ func _build() -> void:
 	_build_menu()
 	_build_end()
 	_build_title()
+	_build_dex()
 	_build_settings()
 
 
@@ -639,6 +685,8 @@ func _build_menu() -> void:
 	lead.custom_minimum_size.x = 640
 	lead.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	v.add_child(lead)
+	_diff_box = _hbox(6)
+	v.add_child(_diff_box)
 	_maps_grid = GridContainer.new()
 	_maps_grid.columns = 4
 	_maps_grid.add_theme_constant_override("h_separation", 12)
@@ -673,7 +721,7 @@ func _build_menu() -> void:
 		pv.add_child(tl)
 		p.add_child(pv)
 		how.add_child(p)
-	var help := _lbl("Drag a Pokémon from your Party onto the map, or click it and then click the map. Keys: 1 to 8 pick a Pokémon, Space starts a wave, F changes speed, P pauses, Esc cancels or opens the menu. On a touch screen you can also tap a spot to preview and tap it again to place.", 12.5, MUTED, f_light, true)
+	var help := _lbl("Drag a Pokémon from your Party onto the map, or click it and then click the map. Keys: 1 to 9 and 0 pick a Pokémon, Space starts a wave, F changes speed, P pauses, Esc cancels or opens the menu. On a touch screen you can also tap a spot to preview and tap it again to place.", 12.5, MUTED, f_light, true)
 	v.add_child(help)
 
 
@@ -785,6 +833,9 @@ func _build_title() -> void:
 	var play := _menu_btn("New game")
 	play.pressed.connect(_open_menu)
 	v.add_child(play)
+	var dex := _menu_btn("Pokédex")
+	dex.pressed.connect(_open_dex)
+	v.add_child(dex)
 	var settings := _menu_btn("Settings")
 	settings.pressed.connect(func(): _settings.visible = true)
 	v.add_child(settings)
@@ -821,6 +872,116 @@ func _continue() -> void:
 		_after_map_loaded()
 		_show_toast("Welcome back! Wave %d is next." % (game.wave + 1))
 	_update_hud(true)
+
+
+# ---------- Pokédex ----------
+func _build_dex() -> void:
+	_dex = _overlay(self, .96)
+	var sc := ScrollContainer.new()
+	sc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_dex.add_child(sc)
+	var m := MarginContainer.new()
+	m.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for side in ["left", "right"]:
+		m.add_theme_constant_override("margin_" + side, 90)
+	m.add_theme_constant_override("margin_top", 24)
+	m.add_theme_constant_override("margin_bottom", 28)
+	sc.add_child(m)
+	_dex_box = _vbox(12)
+	m.add_child(_dex_box)
+
+
+func _open_dex() -> void:
+	_clear(_dex_box)
+	var top := _hbox(12)
+	var back := _btn("‹ Back", PANEL2, TEXT, Color("#3a4280"), 10, 8)
+	back.pressed.connect(func(): _dex.visible = false)
+	top.add_child(back)
+	var tl := _lbl("Pokédex", 30, TEXT, f_disp_b)
+	top.add_child(tl)
+	_dex_box.add_child(top)
+	_dex_box.add_child(_lbl("Every Pokémon you can bring and every ball Team Rocket throws. New Pokémon unlock as you reach later waves on any map.", 14, MUTED, f_light, true))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	_dex_box.add_child(grid)
+	for k in Data.KINDS:
+		grid.add_child(_dex_card(k))
+	_dex_box.add_child(_lbl("Pokéballs", 22, TEXT, f_disp_b))
+	var bg := GridContainer.new()
+	bg.columns = 3
+	bg.add_theme_constant_override("h_separation", 12)
+	bg.add_theme_constant_override("v_separation", 8)
+	_dex_box.add_child(bg)
+	for t in Data.ORDER:
+		var b: Dictionary = Data.BALLS[t]
+		var p := PanelContainer.new()
+		p.add_theme_stylebox_override("panel", _sb(PANEL, 10, 10))
+		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var row := _hbox(8)
+		row.add_child(BallIcon.new(t))
+		var tv := _vbox(0)
+		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tv.add_child(_lbl(b.name, 13, TEXT, f_bold))
+		var nl := _lbl(b.note, 11.5, MUTED, f_light, true)
+		nl.custom_minimum_size.x = 260
+		tv.add_child(nl)
+		row.add_child(tv)
+		p.add_child(row)
+		bg.add_child(p)
+	_dex_box.add_child(_lbl("Type matchups", 22, TEXT, f_disp_b))
+	var lines: Array = []
+	for ty in Data.TYPE_EFFECT:
+		for ball in Data.TYPE_EFFECT[ty]:
+			var mul: float = Data.TYPE_EFFECT[ty][ball]
+			lines.append("%s attacks do %s damage to %ss." % [ty, ("double" if mul == 2 else ("half" if mul == .5 else "%s×" % _num(mul))), Data.BALLS[ball].name])
+	_dex_box.add_child(_lbl("\n".join(lines), 13.5, MUTED, f_light, true))
+	_dex.visible = true
+
+
+func _dex_card(k: String) -> Control:
+	var d: Dictionary = Data.TOWERS[k]
+	var locked := not _unlocked(k)
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", _sb(PANEL, 12, 12))
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := _vbox(6)
+	p.add_child(v)
+	var head := _hbox(10)
+	var icon := MonIcon.new(Data.sprite_for(k, 0), 56, .9, INSET)
+	if locked:
+		icon.modulate = Color(.15, .15, .2)
+	head.add_child(icon)
+	var hv := _vbox(3)
+	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hv.add_child(_lbl(d.name, 18, TEXT, f_disp))
+	var meta := _hbox(6)
+	meta.add_child(_pill(d.type, Color(Data.TYPE_COLORS[d.type])))
+	meta.add_child(_lbl("₽%d · %s" % [d.cost, d.role], 12, MUTED, f_light))
+	hv.add_child(meta)
+	head.add_child(hv)
+	v.add_child(head)
+	if locked:
+		v.add_child(_lbl("Locked. Reach wave %d on any map to unlock it." % Data.UNLOCK[k], 12.5, GOLD, f_light, true))
+	var bl := _lbl(d.blurb, 12.5, MUTED, f_light, true)
+	bl.custom_minimum_size.x = 480
+	v.add_child(bl)
+	var names := Data.path_names(k)
+	var cols := _hbox(10)
+	for pi in 2:
+		var list: Array = d.A if pi == 0 else d.B
+		var col := _vbox(3)
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_child(_caps(names[pi]))
+		for u in list:
+			var ul := _lbl("%s (₽%d): %s" % [u.name.replace("Evolve: ", ""), u.cost, u.desc], 11.5, TEXT if not locked else MUTED, f_light, true)
+			ul.custom_minimum_size.x = 230
+			col.add_child(ul)
+		cols.add_child(col)
+	v.add_child(cols)
+	return p
 
 
 # ---------- settings ----------
@@ -876,12 +1037,22 @@ func _build_settings() -> void:
 		chk.add_theme_color_override(st, TEXT)
 	chk.toggled.connect(func(on): _confirm_release = on; _save())
 	v.add_child(chk)
+	var ua := CheckBox.new()
+	ua.text = "Unlock every Pokémon right away"
+	ua.focus_mode = Control.FOCUS_NONE
+	ua.button_pressed = _unlock_all
+	ua.add_theme_font_size_override("font_size", 14)
+	for st in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		ua.add_theme_color_override(st, TEXT)
+	ua.toggled.connect(func(on): _unlock_all = on; _save(); _render_shop())
+	v.add_child(ua)
 
 	var reset := _btn("Reset best waves and saved game", Color(0, 0, 0, 0), Color("#ffb3b3"), Color(0, 0, 0, 0), 10, 10)
 	reset.add_theme_stylebox_override("normal", _sb(Color(0, 0, 0, 0), 10, 10, 2, LINE))
 	reset.add_theme_stylebox_override("hover", _sb(Color(0, 0, 0, 0), 10, 10, 2, BAD))
 	_two_tap(reset, "Tap again to erase your progress", func():
 		game.best = {}
+		_seen_best = 0
 		_run = {}
 		_save()
 		if _title.visible:
@@ -917,11 +1088,14 @@ func _build_pause_menu() -> void:
 	resume.pressed.connect(_toggle_pause)
 	v.add_child(resume)
 	var restart := _menu_btn("Restart this map")
-	_two_tap(restart, "Tap again to restart", func(): _start_map(game.map))
+	_two_tap(restart, "Tap again to restart", func(): _start_map(game.map, game.diff))
 	v.add_child(restart)
 	var maps := _menu_btn("Change map")
 	maps.pressed.connect(_open_menu)
 	v.add_child(maps)
+	var dex := _menu_btn("Pokédex")
+	dex.pressed.connect(_open_dex)
+	v.add_child(dex)
 	var settings := _menu_btn("Settings")
 	settings.pressed.connect(func(): _settings.visible = true)
 	v.add_child(settings)
@@ -939,6 +1113,20 @@ func _open_pause_menu() -> void:
 func _open_menu() -> void:
 	_title.visible = false
 	_clear(_maps_grid)
+	_clear(_diff_box)
+	var dl := _caps("Difficulty", MUTED, 11)
+	dl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_diff_box.add_child(dl)
+	for dk in ["easy", "normal", "hard"]:
+		var on: bool = _diff == dk
+		var db := _btn(Data.DIFFS[dk].name, GOLD if on else PANEL2, Color("#2b2200") if on else TEXT, GOLD if on else Color("#3a4280"), 9, 7)
+		db.custom_minimum_size.x = 90
+		db.pressed.connect(func(): _diff = dk; _save(); _open_menu())
+		_diff_box.add_child(db)
+	var dh := {"easy": "More money and HP, slower balls.", "normal": "The standard game.", "hard": "Less money and HP, faster balls."}
+	var dhl := _lbl(dh[_diff], 12.5, MUTED, f_light)
+	dhl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_diff_box.add_child(dhl)
 	for m in Data.MAPS:
 		var path := MapArt.build_path(m.path)
 		var o := MapArt.gen_obstacles(m, path)
@@ -967,10 +1155,10 @@ func _open_menu() -> void:
 		var sp := Control.new()
 		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(sp)
-		var bw: int = game.best.get(m.id, 0)
+		var bw: int = game.best.get(Data.best_key(m.id, _diff), 0)
 		if bw >= 40:
 			row.add_child(_pill("Cleared", GOLD, Color("#2b2200"), 10))
-		row.add_child(_lbl("Best: wave %d" % bw if bw else "%d lives" % m.lives, 12, MUTED, f_light))
+		row.add_child(_lbl("Best: wave %d" % bw if bw else "%d HP" % int(round(m.lives * Data.DIFFS[_diff].lives)), 12, MUTED, f_light))
 		var rm := MarginContainer.new()
 		rm.add_theme_constant_override("margin_top", 6)
 		rm.add_child(row)
@@ -987,8 +1175,8 @@ func _menu_back() -> void:
 		_show_title()
 
 
-func _start_map(m: Dictionary) -> void:
-	game.new_game(m)
+func _start_map(m: Dictionary, diff := "") -> void:
+	game.new_game(m, diff if diff != "" else _diff)
 	_after_map_loaded()
 	_save_run()
 
@@ -999,7 +1187,8 @@ func _after_map_loaded() -> void:
 	stage.ghost = null
 	stage.selected = null
 	stage.refresh_bg()
-	_mapname_lbl.text = ("%s · %s" % [m.name, m.diff]).to_upper()
+	var mode := "" if game.diff == "normal" else " · %s mode" % Data.DIFFS[game.diff].name
+	_mapname_lbl.text = ("%s · %s%s" % [m.name, m.diff, mode]).to_upper()
 	_menu.visible = false
 	_end.visible = false
 	_render_shop()
@@ -1033,7 +1222,7 @@ func _end_primary_pressed() -> void:
 		_update_hud(true)
 		_show_toast("Freeplay. The balls get tougher every wave.")
 	else:
-		_start_map(game.map)
+		_start_map(game.map, game.diff)
 
 
 # ---------- toast / hud ----------
@@ -1097,8 +1286,16 @@ func _update_hud(force := false) -> void:
 	for k in _shop_buttons:
 		var b: Button = _shop_buttons[k]
 		var poor: bool = game.money < Data.TOWERS[k].cost
-		b.disabled = poor or game.map == null
+		b.disabled = poor or game.map == null or not _unlocked(k)
 		b.modulate.a = .45 if b.disabled else 1.0
+	for id in _item_buttons:
+		var ib: Button = _item_buttons[id]
+		var cost := game.item_cost(id)
+		ib.text = "%s ₽%d" % [Data.ITEMS[id].short, cost]
+		ib.tooltip_text = "%s: %s" % [Data.ITEMS[id].name, Data.ITEMS[id].desc]
+		if id == "candy" and game.candy:
+			ib.text = "Candy ready"
+		ib.disabled = game.map == null or game.money < cost
 	for w in _cost_widgets:
 		var card: CardButton = w[0]
 		var poor: bool = game.money < w[1]
@@ -1108,7 +1305,7 @@ func _update_hud(force := false) -> void:
 
 
 func _process(dt: float) -> void:
-	if not _menu.visible and not _title.visible:
+	if not _menu.visible and not _title.visible and not _dex.visible:
 		game.frame(dt)
 	_hud_tick += dt
 	if _hud_tick > .1:
@@ -1146,6 +1343,19 @@ func _render_next() -> void:
 		_next_box.add_child(cell)
 
 
+func _use_item(id: String) -> void:
+	var err := game.use_item(id)
+	if err != "":
+		_show_toast(err)
+		return
+	match id:
+		"potion": _show_toast("Potion used. Pikachu feels better!")
+		"repel": _show_toast("Max Repel! Every ball slows down for 5 seconds.")
+		"candy": _show_toast("Rare Candy ready: your next upgrade is 30% off.")
+	_render_sheet()
+	_update_hud(true)
+
+
 # ---------- shop ----------
 func _render_shop() -> void:
 	_clear(_shop_grid)
@@ -1155,9 +1365,13 @@ func _render_shop() -> void:
 		var d: Dictionary = Data.TOWERS[k]
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(0, 80)
+		b.custom_minimum_size = Vector2(0, 62)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.tooltip_text = "%s, %s type (key %d): %s" % [d.name, d.type, i + 1, d.blurb]
+		var locked := not _unlocked(k)
+		var key_txt := " (key %d)" % ((i + 1) % 10) if i < 10 else ""
+		b.tooltip_text = "%s, %s type%s. %s: %s" % [d.name, d.type, key_txt, d.role, d.blurb]
+		if locked:
+			b.tooltip_text = "Locked. Reach wave %d on any map to unlock %s." % [Data.UNLOCK[k], d.name]
 		var sel := stage.placing == k
 		var n := _sb(PANEL2, 11, 0, 2, GOLD if sel else Color(0, 0, 0, 0))
 		var h := _sb(Color("#363e78"), 11, 0, 2, GOLD if sel else Color(0, 0, 0, 0))
@@ -1171,15 +1385,17 @@ func _render_shop() -> void:
 		v.set_anchors_preset(Control.PRESET_FULL_RECT)
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var icon := MonIcon.new(Data.sprite_for(k, 0), 44, .8)
+		var icon := MonIcon.new(Data.sprite_for(k, 0), 34, .62)
 		icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		if locked:
+			icon.modulate = Color(0, 0, 0, .55)
 		v.add_child(icon)
-		var nl := _lbl(d.name, 11, TEXT, f_bold)
+		var nl := _lbl(d.name if not locked else "???", 10, TEXT, f_bold)
 		nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		nl.clip_text = true
 		nl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		v.add_child(nl)
-		var cl := _lbl("₽%d" % d.cost, 12.5, GOLD, f_bold)
+		var cl := _lbl("₽%d" % d.cost if not locked else "Wave %d" % Data.UNLOCK[k], 11, GOLD if not locked else MUTED, f_bold)
 		cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(cl)
 		b.add_child(v)
@@ -1193,6 +1409,9 @@ func _render_shop() -> void:
 func _select_kind(k: String) -> void:
 	if game.map == null:
 		return
+	if not _unlocked(k):
+		_show_toast("Reach wave %d on any map to unlock %s." % [Data.UNLOCK[k], Data.TOWERS[k].name])
+		return
 	stage.placing = "" if stage.placing == k else k
 	stage.selected = null
 	stage.ghost = null
@@ -1205,7 +1424,7 @@ func _select_kind(k: String) -> void:
 
 ## Dragging a Pokémon from the Party onto the field places it where it's dropped.
 func _begin_drag(k: String) -> void:
-	if game.map == null or game.money < Data.TOWERS[k].cost:
+	if game.map == null or game.money < Data.TOWERS[k].cost or not _unlocked(k):
 		return
 	_drag_kind = k
 	_drag_on_field = false
@@ -1331,6 +1550,14 @@ func _stats_main(kind: String, s: Dictionary, sp: String) -> Array:
 		"meowth": return [[s.dmg, "Damage"], [sp, "Speed"], ["₽%d" % s.pay, "Pay Day"]]
 		"wobbuffet": return [[s.counter, "Damage"], ["%ss" % _num(s.confuse), "Confused"], ["%d%%" % int(round((1 - s.shadowTag) * 100)) if s.shadowTag else "0%", "Slow"]]
 		"mewtwo": return [[s.dmg, "Damage"], [sp, "Speed"], [s.targets, "Targets"]]
+		"magikarp": return [[s.dmg, "Damage"], [sp, "Speed"], [s.area if s.area else "-", "Blast"]]
+		"pidgey": return [[s.dmg, "Damage"], [sp, "Speed"], [s.pierce, "Hits"]]
+		"geodude": return [[s.dmg, "Damage"], [s.rocks, "Rocks"], [s.rockUses, "Rock hits"]]
+		"machop": return [[s.dmg, "Damage"], [sp, "Speed"], [s.targets, "Targets"]]
+		"abra": return [["+%d%%" % int(round((s.auraRate - 1) * 100)), "Aura speed"], ["+%d" % s.auraDmg, "Aura dmg"], [sp, "Speed"]]
+		"lapras": return [[s.dmg, "Damage"], [sp, "Speed"], ["%ss" % _num(s.freeze), "Freeze"]]
+		"snorlax": return [[int(s.hold), "Hold"], ["%ss" % _num(s.recover), "Nap"], [int(s.slamDmg) if s.slam else 0, "Slam"]]
+		"dratini": return [[s.dmg, "Damage"], [sp, "Speed"], ["×%d" % int(s.bossMul), "Vs bosses"]]
 	return []
 
 
@@ -1442,7 +1669,8 @@ func _render_sheet() -> void:
 			var dl := _lbl(u.desc, 11.5, MUTED, f_light, true)
 			dl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			cv.add_child(dl)
-			cost_lbl = _lbl("₽%d" % u.cost, 14, GOLD, f_bold)
+			var uc := game.upgrade_cost(u.cost)
+			cost_lbl = _lbl("₽%d%s" % [uc, "  (Rare Candy)" if uc != u.cost else ""], 14, GOLD, f_bold)
 		cv.add_child(cost_lbl)
 		if state != "open":
 			card.set_disabled(true)
@@ -1452,7 +1680,7 @@ func _render_sheet() -> void:
 			card.pressed.connect(func(): game.upgrade(tw, pkey))
 			card.mouse_entered.connect(_preview_upgrade.bind(tw, pkey))
 			card.mouse_exited.connect(_preview_upgrade.bind(tw, ""))
-			_cost_widgets.append([card, list[tier].cost, cost_lbl])
+			_cost_widgets.append([card, game.upgrade_cost(list[tier].cost), cost_lbl])
 		col.add_child(card)
 		cols.add_child(col)
 	up.add_child(cols)
@@ -1561,7 +1789,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		_back()
 		get_viewport().set_input_as_handled()
 		return
-	if _title.visible or _menu.visible or _end.visible or _settings.visible:
+	if _title.visible or _menu.visible or _end.visible or _settings.visible or _dex.visible:
 		return
 	match key:
 		KEY_SPACE:
@@ -1572,8 +1800,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_P:
 			_toggle_pause()
 		_:
-			if key >= KEY_1 and key <= KEY_8:
+			if key >= KEY_1 and key <= KEY_9:
 				_select_kind(Data.KINDS[key - KEY_1])
+			elif key == KEY_0:
+				_select_kind(Data.KINDS[9])
 	get_viewport().set_input_as_handled()
 
 
@@ -1581,6 +1811,8 @@ func _unhandled_input(e: InputEvent) -> void:
 func _back() -> void:
 	if _settings.visible:
 		_settings.visible = false
+	elif _dex.visible:
+		_dex.visible = false
 	elif _title.visible or _end.visible:
 		pass
 	elif _menu.visible:

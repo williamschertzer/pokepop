@@ -2,7 +2,16 @@
 
 This folder is the same game as the web version in the repo root, rebuilt in the [Godot](https://godotengine.org) game engine. Godot can turn it into a website, an Android app, or a Windows, Mac or Linux program.
 
-Everything from the web version is here: the Team Rocket story, all 8 Pokémon with their evolution and move upgrades, the upgrade panel that lists what each Pokémon has learned, every Pokéball tier, the 4 Kanto maps, 40 waves plus freeplay, and Solar Beam firing across the whole map. The numbers are the same too: the same team played through all 40 waves on every map in both versions ends each wave with the same Pikachu HP and the same Pokédollars. (Deep into freeplay with fully upgraded teams, money can drift by a few ₽ because the two engines round decimals slightly differently.)
+It started as a copy of the web version (the Team Rocket story, the original 8 Pokémon, every Pokéball tier, the 4 Kanto maps, 40 waves plus freeplay) and has since grown past it. The Godot version adds:
+
+- **8 more Pokémon** that unlock as you reach later waves on any map: Magikarp (wave 5), Pidgey (10), Geodude (15), Machop (20), Abra (25), Lapras (30), Snorlax (35) and Dratini (40). Settings has a switch to unlock them all at once.
+- **3 new balls:** Timer Balls speed up the longer they roll, Net Balls shrug off Water, and Heal Balls heal themselves if you stop hitting them.
+- **Type matchups:** Fighting does double damage to Heavy Balls, Electric and Grass do double to Net Balls, Water does half, and Dragon hits the bosses harder. The Pokédex lists them all.
+- **Trainer items** in the side panel: a Potion (+25 HP), Max Repel (every ball slows down for 5 seconds) and Rare Candy (30% off your next upgrade).
+- **Easy, Normal and Hard** for every map, with best waves kept separately.
+- **A livelier look:** Pokémon breathe and hop when they attack, balls roll along the path and break into pieces, big moves shake the screen, and each map has its own ambience (butterflies, fireflies, ghost lights, glinting crystals).
+
+The original 8 Pokémon still play the same as in the web version.
 
 All the art is drawn with code, just like the web version. There are no official sprites.
 
@@ -55,8 +64,8 @@ To publish on the Google Play Store you would also need a "release keystore" and
 
 ## How to play
 
-The game opens on a title screen. **Continue** picks up your last game, **New game** takes you to the map picker, and **Settings** has the sound volume and an option to ask before releasing a Pokémon.
+The game opens on a title screen. **Continue** picks up your last game, **New game** takes you to the map picker, and **Pokédex** lists every Pokémon, ball and type matchup, and **Settings** has the sound volume, an option to ask before releasing a Pokémon, and a switch to unlock every Pokémon right away.
 
-Pick a map, then drag a Pokémon from the Party panel onto the map (or click it, or press keys 1 to 8, then click the map). The panel at the top right shows which balls the next wave brings. Press **Start wave** (or **Space**). Click a Pokémon on the field to open its upgrade panel; hovering an upgrade shows how its numbers change. **F** changes speed, **P** pauses, and **Esc** cancels or opens the pause menu (restart, change map, settings, main menu). On a phone or tablet you can also tap a spot once to preview and tap it again to place.
+Pick a difficulty and a map, then drag a Pokémon from the Party panel onto the map (or click it, or press keys 1 to 9 and 0, then click the map). Snorlax is the one Pokémon that goes on the path itself. The panel at the top right shows which balls the next wave brings. Press **Start wave** (or **Space**). Click a Pokémon on the field to open its upgrade panel; hovering an upgrade shows how its numbers change. **F** changes speed, **P** pauses, and **Esc** cancels or opens the pause menu (restart, change map, settings, main menu). On a phone or tablet you can also tap a spot once to preview and tap it again to place.
 
 The game saves itself between waves, so you can close it and choose **Continue** later. If you close it in the middle of a wave, you start again from the beginning of that wave. Your best wave on each map and your settings are saved on the device too.
