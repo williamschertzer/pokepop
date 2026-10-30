@@ -972,6 +972,10 @@ func _dex_card(k: String) -> Control:
 	var cols := _hbox(10)
 	for pi in 2:
 		var list: Array = d.A if pi == 0 else d.B
+		if pi == 0 and d.has("branches"):
+			list = []
+			for br in d.branches:
+				list.append_array(Data.TOWERS[br].A)
 		var col := _vbox(3)
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		col.add_child(_caps(names[pi]))
@@ -1365,7 +1369,7 @@ func _render_shop() -> void:
 		var d: Dictionary = Data.TOWERS[k]
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(0, 62)
+		b.custom_minimum_size = Vector2(0, 52)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var locked := not _unlocked(k)
 		var key_txt := " (key %d)" % ((i + 1) % 10) if i < 10 else ""
@@ -1385,7 +1389,7 @@ func _render_shop() -> void:
 		v.set_anchors_preset(Control.PRESET_FULL_RECT)
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var icon := MonIcon.new(Data.sprite_for(k, 0), 34, .62)
+		var icon := MonIcon.new(Data.sprite_for(k, 0), 26, .5)
 		icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		if locked:
 			icon.modulate = Color(0, 0, 0, .55)
@@ -1558,6 +1562,12 @@ func _stats_main(kind: String, s: Dictionary, sp: String) -> Array:
 		"lapras": return [[s.dmg, "Damage"], [sp, "Speed"], ["%ss" % _num(s.freeze), "Freeze"]]
 		"snorlax": return [[int(s.hold), "Hold"], ["%ss" % _num(s.recover), "Nap"], [int(s.slamDmg) if s.slam else 0, "Slam"]]
 		"dratini": return [[s.dmg, "Damage"], [sp, "Speed"], ["×%d" % int(s.bossMul), "Vs bosses"]]
+		"eevee", "vaporeon", "jolteon", "flareon": return [[s.dmg, "Damage"], [sp, "Speed"], [s.targets, "Targets"]]
+		"chansey": return [[s.dmg, "Damage"], [sp, "Speed"], ["+%d" % s.heal, "HP a wave"]]
+		"ditto":
+			if s.get("copy", "") != "":
+				return _stats_main(s.copy, s, sp)
+			return [[s.dmg, "Damage"], [sp, "Speed"], ["%d/%d" % [s.copyA, s.copyB], "Copies"]]
 	return []
 
 
@@ -1591,12 +1601,15 @@ func _render_sheet() -> void:
 	hv.add_child(_lbl(Art.SPRITE_INFO[sp].name, 18, TEXT, f_disp, true))
 	var meta := HFlowContainer.new()
 	meta.add_theme_constant_override("h_separation", 6)
-	meta.add_child(_pill(d.type, Color(Data.TYPE_COLORS[d.type])))
+	meta.add_child(_pill(tw.type, Color(Data.TYPE_COLORS[tw.type])))
 	_sheet_pops = _lbl("%d pops" % tw.pops, 12, MUTED, f_light)
 	meta.add_child(_sheet_pops)
 	if s.detect:
 		meta.add_child(_lbl("· Sees Dusk Balls", 12, MUTED, f_light))
 	hv.add_child(meta)
+	if tw.kind == "ditto":
+		var cp: String = s.get("copy", "")
+		hv.add_child(_lbl("Transformed into %s" % Art.SPRITE_INFO[Data.sprite_for(cp, s.copyTier)].name if cp != "" else "Place it next to a Pokémon to copy it", 12, GOLD, f_light, true))
 	head.add_child(hv)
 	var x := _btn("×", PANEL2, TEXT, Color("#3a4280"), 8, 0)
 	x.custom_minimum_size = Vector2(32, 32)
@@ -1648,6 +1661,11 @@ func _render_sheet() -> void:
 			ph.add_child(pip)
 		col.add_child(ph)
 		var state: String = game.upgrade_state(tw, pkey)
+		if pi == 0 and state == "open" and d.has("branches"):
+			for br in d.branches:
+				col.add_child(_branch_card(tw, br))
+			cols.add_child(col)
+			continue
 		var card_n := _sb(PANEL2, 10, 8, 2, LINE)
 		var card_h := _sb(PANEL2, 10, 8, 2, GREEN)
 		var card := CardButton.new(card_n, card_h)
@@ -1740,12 +1758,39 @@ func _render_sheet() -> void:
 	_update_hud(true)
 
 
+## One of Eevee's three evolutions, as a small card to pick from.
+func _branch_card(tw, br: String) -> Control:
+	var u: Dictionary = Data.TOWERS[br].A[0]
+	var card_n := _sb(PANEL2, 10, 6, 2, LINE)
+	var card_h := _sb(PANEL2, 10, 6, 2, GREEN)
+	var card := CardButton.new(card_n, card_h)
+	var h := _hbox(6)
+	card.add_child(h)
+	var icon := MonIcon.new(br, 30, .55)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(icon)
+	var cv := _vbox(0)
+	cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(cv)
+	cv.add_child(_lbl(u.name, 12, TEXT, f_bold, true))
+	cv.add_child(_lbl(Data.TOWERS[br].role, 10.5, MUTED, f_light, true))
+	var uc := game.upgrade_cost(u.cost)
+	var cost_lbl := _lbl("₽%d" % uc, 12, GOLD, f_bold)
+	cv.add_child(cost_lbl)
+	card.tooltip_text = u.desc
+	card.pressed.connect(func(): game.upgrade(tw, "a", br))
+	card.mouse_entered.connect(_preview_upgrade.bind(tw, "a", br))
+	card.mouse_exited.connect(_preview_upgrade.bind(tw, ""))
+	_cost_widgets.append([card, uc, cost_lbl])
+	return card
+
+
 ## While hovering an upgrade, the stat boxes show what it changes ("2 › 3").
-func _preview_upgrade(tw, p: String) -> void:
+func _preview_upgrade(tw, p: String, branch := "") -> void:
 	var cur := _stats_for(tw.kind, tw.s)
 	var nxt := cur
 	if p != "":
-		nxt = _stats_for(tw.kind, Data.compute_stats(tw.kind, tw.a + int(p == "a"), tw.b + int(p == "b")))
+		nxt = _stats_for(branch if branch != "" else tw.kind, game.stats_for(tw, tw.a + int(p == "a"), tw.b + int(p == "b"), branch))
 	for i in mini(_stat_labels.size(), cur.size()):
 		var l: Label = _stat_labels[i]
 		if not is_instance_valid(l):

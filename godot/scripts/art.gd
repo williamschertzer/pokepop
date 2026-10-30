@@ -25,6 +25,9 @@ const SPRITE_INFO := {
 	"lapras": {"name": "Lapras", "scale": 1.0}, "gmaxlapras": {"name": "Gigantamax Lapras", "scale": 1.06},
 	"snorlax": {"name": "Snorlax", "scale": 1.0}, "gmaxsnorlax": {"name": "Gigantamax Snorlax", "scale": 1.08},
 	"dratini": {"name": "Dratini", "scale": .9}, "dragonair": {"name": "Dragonair", "scale": .98}, "dragonite": {"name": "Dragonite", "scale": 1.02},
+	"eevee": {"name": "Eevee", "scale": .86}, "vaporeon": {"name": "Vaporeon", "scale": .96}, "jolteon": {"name": "Jolteon", "scale": .94}, "flareon": {"name": "Flareon", "scale": .94},
+	"ditto": {"name": "Ditto", "scale": .9},
+	"chansey": {"name": "Chansey", "scale": .92}, "blissey": {"name": "Blissey", "scale": 1.0},
 }
 
 static var _mon_cache := {}
@@ -35,7 +38,7 @@ static var _pen := Pen.new()
 # ---------- cached access ----------
 ## Returns the recorded drawing of a Pokémon at time t, centred on its feet area.
 const ANIMATED := ["gmax", "charmander", "charmeleon", "charizard", "megax", "gastly", "haunter", "megagengar", "venusaur", "megavenusaur", "wobbuffet", "mewtwo", "armormewtwo", "megamewtwo",
-	"magikarp", "megagyarados", "pidgey", "pidgeotto", "pidgeot", "megapidgeot", "geodude", "gmaxmachamp", "megaalakazam", "gmaxlapras", "dragonair"]
+	"magikarp", "megagyarados", "pidgey", "pidgeotto", "pidgeot", "megapidgeot", "geodude", "gmaxmachamp", "megaalakazam", "gmaxlapras", "dragonair", "ditto", "vaporeon", "flareon"]
 
 
 static func mon(sp: String, t: float, opt := {}, alpha := 1.0) -> Array:
@@ -184,6 +187,13 @@ static func draw_mon(c: Pen, sp: String, t: float, opt := {}) -> void:
 		"dratini": dragon(c, t, 0)
 		"dragonair": dragon(c, t, 1)
 		"dragonite": dragon(c, t, 2)
+		"eevee": eevee(c, t, 0)
+		"vaporeon": eevee(c, t, 1)
+		"jolteon": eevee(c, t, 2)
+		"flareon": eevee(c, t, 3)
+		"ditto": ditto(c, t)
+		"chansey": chansey(c, t, false)
+		"blissey": chansey(c, t, true)
 	c.restore()
 
 
@@ -906,3 +916,117 @@ static func coin(c: CanvasItem, x: float, y: float, r: float, ph: float, a := 1.
 	c.draw_polyline(pts, Color(.66, .48, .07, a), 1.2, true)
 	c.draw_rect(Rect2(-r * .5, -r * .6, r * .25, r * .5), Color(1, 1, 1, .6 * a))
 	c.draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## Eevee (form 0) and its evolutions: 1 Vaporeon, 2 Jolteon, 3 Flareon.
+static func eevee(c: Pen, t: float, form: int) -> void:
+	var body: String = ["#b8834a", "#6cc2ea", "#f5d143", "#ef6b32"][form]
+	var line: String = ["#5a3a1c", "#1f5a86", "#7a5a10", "#7a2810"][form]
+	var ruff: String = ["#f3e2b8", "#f2f6ff", "#f8f8f0", "#fbe4a0"][form]
+	# tail
+	match form:
+		1:
+			var sw := sin(t * 3) * 2
+			c.begin(); c.move_to(6, 12); c.bez_to(16, 14, 20, 6, 20 + sw, -2); c.stroke(line, 6.4, true); c.stroke(body, 4.4, true)
+			c.poly([[20 + sw, -2], [27 + sw, -9], [25 + sw, 1], [29 + sw, 5], [19 + sw, 2]]); c.fs(ruff, line, 1.2)
+		2:
+			c.poly([[6, 10], [18, 2], [14, 9], [22, 6], [15, 14], [20, 16], [7, 15]]); c.fs(ruff, line, 1.2)
+		3:
+			var sw := sin(t * 3) * 1.2
+			c.ell(15, 2 + sw, 7, 10, .5); c.fs(ruff, line, 1.2)
+			c.ell(13, 4 + sw, 4, 6, .5); c.fill("#fff4c8")
+		_:
+			c.ell(14, 4, 6, 9, .55); c.fs(body, line, 1.2)
+			c.ell(17, -2, 4, 4.5, .55); c.fs(ruff, null)
+	# legs and body
+	c.ell(-6, 17, 3.6, 2.4); c.fs(body, line, 1.2); c.ell(5, 17, 3.6, 2.4); c.fs(body, line, 1.2)
+	c.ell(0, 9, 9, 8); c.fs(body, line, 1.2)
+	# ruff around the neck
+	match form:
+		1:
+			for s in [-1, 1]:
+				c.poly([[s * 3, -2], [s * 11, 0], [s * 7, 4]]); c.fs(ruff, line, 1)
+		2:
+			c.poly([[-9, -1], [-12, 4], [-6, 3], [-6, 8], [0, 4], [6, 8], [6, 3], [12, 4], [9, -1]]); c.fs(ruff, line, 1)
+		_:
+			c.begin()
+			for i in 9:
+				var a := PI * .1 + i * PI * .1
+				var r := 9.5 if i % 2 else 7.0
+				c.line_to(cos(a) * r * 1.1, 1 + sin(a) * r * .8)
+			c.close(); c.fs(ruff, line, 1)
+	# ears
+	for s in [-1, 1]:
+		c.save(); c.translate(s * 7, -13); c.rotate(s * (.55 if form != 1 else .9))
+		match form:
+			1:
+				c.poly([[0, 4], [-4, -6], [0, -12], [4, -6]]); c.fs(ruff, line, 1.2)
+				c.poly([[0, 1], [-2, -5], [0, -8], [2, -5]]); c.fill("#5aa6d8")
+			2:
+				c.poly([[-3.5, 3], [0, -15], [3.5, 3]]); c.fs(body, line, 1.2)
+				c.poly([[-1.6, 1], [0, -9], [1.6, 1]]); c.fill("#2a2a2a")
+			_:
+				c.ell(0, -6, 4.4, 9.5); c.fs(body, line, 1.2)
+				c.ell(0, -5, 2.2, 6); c.fill(line if form == 0 else "#a83a18")
+		c.restore()
+	# head
+	c.ell(0, -6, 11, 9.5); c.fs(body, line, 1.2)
+	if form == 1:
+		c.begin(); c.move_to(-6, -14); c.quad_to(0, -24, 6, -14); c.stroke(ruff, 2.6, true)
+	elif form == 3:
+		for i in 3:
+			c.ell(-3 + i * 3, -15, 2.6, 2.4); c.fs(ruff, null)
+	for s in [-1, 1]:
+		c.ell(s * 4.4, -7, 2.4, 3); c.fill("#2a1a14")
+		c.ell(s * 4.4 + .8, -8.2, .9, 1); c.fill("#fff")
+	c.ell(0, -3.4, 1, .7); c.fill(OUT)
+	c.begin(); c.move_to(-2.2, -1.8); c.quad_to(-1.1, -.6, 0, -1.8); c.quad_to(1.1, -.6, 2.2, -1.8); c.stroke(OUT, 1)
+	if form == 2 and int(t * 4) % 3 == 0:
+		c.begin(); c.move_to(-14, -10); c.line_to(-17, -6); c.line_to(-14, -6); c.line_to(-17, -2); c.stroke("#fff38a", 1.4)
+
+
+static func ditto(c: Pen, t: float) -> void:
+	var w := 1 + sin(t * 2.6) * .05
+	c.save(); c.scale(w, 1 / w)
+	c.begin()
+	c.move_to(-15, 17)
+	c.bez_to(-19, 6, -14, -6, -9, -8)
+	c.bez_to(-8, -15, -2, -16, 1, -11)
+	c.bez_to(6, -16, 13, -12, 11, -5)
+	c.bez_to(18, 0, 19, 12, 15, 17)
+	c.close()
+	c.fs("#b48ad8", "#5a3a8a", 1.4)
+	c.ell(-6, -3, 3, 1.6, -.3); c.fill(Color(1, 1, 1, .35))
+	c.ell(-4, 2, 1.1, 1.1); c.fill("#2a1a3a"); c.ell(4, 2, 1.1, 1.1); c.fill("#2a1a3a")
+	c.begin(); c.move_to(-5, 7); c.bez_to(-2, 9.5, 2, 9.5, 6, 6.5); c.stroke("#2a1a3a", 1.1)
+	c.restore()
+
+
+## Chansey, or Blissey when evolved.
+static func chansey(c: Pen, t: float, bliss: bool) -> void:
+	var pink := "#f5a9c0" if not bliss else "#f7b4c8"
+	var line := "#a04a68"
+	c.ell(-6, 18, 4.4, 2.4); c.fs(pink, line, 1.2); c.ell(6, 18, 4.4, 2.4); c.fs(pink, line, 1.2)
+	if bliss:
+		c.begin(); c.move_to(-14, -2); c.bez_to(-17, 14, -10, 19, 0, 19); c.bez_to(10, 19, 17, 14, 14, -2); c.close(); c.fs("#fff6f8", line, 1.2)
+		c.ell(0, -6, 14, 13); c.fs(pink, line, 1.2)
+		for s in [-1, 1]:
+			c.begin(); c.arc(s * 15, -12, 4.5, 0, TAU); c.fs(pink, line, 1.2)
+			c.begin(); c.arc(s * 15, -12, 2, 0, TAU); c.stroke(line, 1)
+		c.ell(0, -16, 4, 2.6); c.fs(pink, line, 1)
+	else:
+		c.ell(0, 0, 14, 17); c.fs(pink, line, 1.2)
+		for s in [-1, 1]:
+			c.poly([[s * 7, -15], [s * 13, -20], [s * 12, -11]]); c.fs(pink, line, 1.2)
+		c.ell(-13, -1, 3, 2.2, .4); c.fs(pink, line, 1); c.ell(13, -1, 3, 2.2, -.4); c.fs(pink, line, 1)
+	# pouch with an egg
+	var bob := sin(t * 2) * .4
+	c.ell(0, 9 + bob, 7, 4.6); c.fs("#fff8f0", "#c8a890", 1)
+	c.ell(0, 6.5 + bob, 3.4, 4.2); c.fs("#ffffff", "#c8a890", 1)
+	c.begin(); c.move_to(-7, 9 + bob); c.quad_to(0, 14 + bob, 7, 9 + bob); c.stroke(line, 1.2)
+	var ey := -7.0 if bliss else -6.0
+	for s in [-1, 1]:
+		c.ell(s * 5, ey, 1.8, 2.4); c.fill("#3a1020")
+		c.ell(s * 5 + .6, ey - 1, .7, .8); c.fill("#fff")
+		c.ell(s * 9, ey + 4, 2.4, 1.4); c.fill(Color("#ff6a90", .5))
+	c.begin(); c.move_to(-2.6, ey + 4); c.quad_to(0, ey + 6.5, 2.6, ey + 4); c.stroke(line, 1.1)

@@ -309,6 +309,9 @@ func _draw_world() -> void:
 	ts.sort_custom(func(a, b): return a.y < b.y)
 	for tw in ts:
 		var spn := Data.sprite_for(tw.kind, tw.a)
+		var ditto_copy: bool = tw.kind == "ditto" and tw.copy != ""
+		if ditto_copy:
+			spn = Data.sprite_for(tw.copy, tw.s.copyTier)
 		if tw == selected:
 			stroke_ell(ci, tw.x, tw.y + 15, 18, 6, Color("#ffd23f"), 2)
 		var pop := minf(1, (gt - tw.born) * 5)
@@ -328,6 +331,10 @@ func _draw_world() -> void:
 			glow(ci, Vector2(tw.x, tw.y - 4), 26, Color(1, .45, .25, .35) if tw.rush > 0 else Color(.7, .5, 1, .4))
 		if tw.buffed:
 			glow(ci, Vector2(tw.x, tw.y + 12), 14, Color(1, .55, .85, .35 + .1 * sin(gt * 3 + tw.id)))
+		if ditto_copy:
+			glow(ci, Vector2(tw.x, tw.y - 2), 24, Color(.75, .5, 1, .3 + .08 * sin(gt * 4 + tw.id)))
+		if tw.s.safeguard and tw.timers.get("sg", 0.0) <= 0:
+			ci.draw_arc(Vector2(tw.x, tw.y - 2), 22, 0, TAU, 32, Color(1, .7, .82, .5 + .2 * sin(gt * 4)), 2, true)
 		if tw.kind == "snorlax" and tw.down > 0:
 			Art.put_mon(ci, spn, px + 20, py + 4, .85, tw.face < 0, gt + tw.id, .75, opt)
 			text(ci, "Z", px + 30, py - 24 - fmod(gt * 14, 10), 12, Color.WHITE, true, 3, Color(0, 0, 0, .5))
@@ -342,6 +349,9 @@ func _draw_world() -> void:
 			var w := 30.0
 			ci.draw_rect(Rect2(tw.x - w / 2, tw.y + 22, w, 4), Color(0, 0, 0, .55))
 			ci.draw_rect(Rect2(tw.x - w / 2, tw.y + 22, w * clampf(tw.hold / tw.s.hold, 0, 1), 4), Color("#7be3a2"))
+		if ditto_copy:
+			# a little Ditto riding along, so a copy is easy to tell apart
+			Art.put_mon(ci, "ditto", tw.x + 13, tw.y + 12, .42, false, gt + tw.id)
 		# upgrade pips: gold for the first path, blue for the second
 		for i in tw.a:
 			ci.draw_circle(Vector2(tw.x - 12 + i * 5, tw.y + 21), 1.8, Color("#ffd23f"))
@@ -372,6 +382,12 @@ func _draw_world() -> void:
 				ci.draw_set_transform_matrix(Transform2D.IDENTITY)
 			"coin":
 				Art.coin(ci, p.x, p.y, 5, p.ph)
+			"egg":
+				ci.draw_set_transform(Vector2(p.x, p.y), p.rot, Vector2.ONE)
+				fill_ell(ci, 0, 0, 4, 5, Color("#fffaf0"))
+				stroke_ell(ci, 0, 0, 4, 5, Color("#8a7a60"), 1)
+				fill_ell(ci, -1, -1.5, 1.2, 1.6, Color("#ffffff"))
+				ci.draw_set_transform_matrix(Transform2D.IDENTITY)
 			"rock":
 				var rp := PackedVector2Array([Vector2(-5, -3), Vector2(0, -6), Vector2(5, -2), Vector2(4, 4), Vector2(-3, 5)])
 				ci.draw_set_transform(Vector2(p.x, p.y), p.rot, Vector2.ONE)
@@ -451,6 +467,16 @@ func _draw_world() -> void:
 					var idx := PackedInt32Array()
 					Pen._capsule(p1, p2, w / 2, pts, idx)
 					ci.draw_colored_polygon(pts, col)
+			"swift":
+				var col: Color = f.col
+				col.a = 1 - k
+				var p1 := Vector2(f.x1, f.y1)
+				var p2 := Vector2(f.x2, f.y2)
+				var head := p1.lerp(p2, minf(1, k * 2.5))
+				var c1 := col
+				c1.a *= .35
+				ci.draw_line(p1.lerp(head, .4), head, c1, 3, true)
+				_draw_star(ci, head, 4.5, col, gt * 12)
 			"slash":
 				var col := Color(1, 1, 1, 1 - k)
 				for i in [-1, 0, 1]:
@@ -504,3 +530,11 @@ func _draw_world() -> void:
 			ci.draw_rect(Rect2(0, 0, W, H), Color(1, 40 / 255.0, 40 / 255.0, .25 * f.life / f.max))
 	if g.paused:
 		ci.draw_rect(Rect2(0, 0, W, H), Color(10 / 255.0, 12 / 255.0, 30 / 255.0, .5))
+
+
+static func _draw_star(ci: CanvasItem, c: Vector2, r: float, col: Color, rot: float) -> void:
+	var pts := PackedVector2Array()
+	for i in 10:
+		var a := rot - PI / 2 + i * PI / 5
+		pts.append(c + Vector2.from_angle(a) * (r * .45 if i % 2 else r))
+	ci.draw_colored_polygon(pts, col)

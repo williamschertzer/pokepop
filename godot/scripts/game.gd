@@ -68,6 +68,8 @@ class Tower:
 	var danced := 0  # Dragon Dance: waves survived
 	var spots: Array = []  # Geodude: path distances it can drop rocks on
 	var buffed := false
+	var lucky := false  # in range of a Lucky Egg Chansey: pops pay ₽1 extra
+	var copy := ""  # Ditto: the kind it has transformed into
 
 
 var map = null
@@ -188,7 +190,7 @@ func damage(b: Ball, amt: float, src: Tower) -> void:
 
 func pop_ball(b: Ball, src: Tower, over_dmg: float) -> void:
 	b.dead = true
-	money += 1 + (1 if src and src.s.dream else 0) + (3 if src and src.s.thief else 0)
+	money += 1 + (1 if src and src.s.dream else 0) + (3 if src and src.s.thief else 0) + (1 if src and src.lucky else 0)
 	if src:
 		src.pops += 1
 	var def := b.def
@@ -387,21 +389,79 @@ func _init_tower(tw: Tower) -> void:
 		tw.x = p.x; tw.y = p.y
 		tw.hold = tw.s.hold
 	if tw.kind == "geodude":
-		tw.spots = []
-		var d := 0.0
-		while d < path.total:
-			var p := MapArt.pos_at(path, d)
-			if p.distance_to(Vector2(tw.x, tw.y)) <= tw.s.range and p.x > 0 and p.x < W and p.y > 0 and p.y < H:
-				tw.spots.append(d)
-			d += 10
+		_find_spots(tw)
+
+
+func _find_spots(tw: Tower) -> void:
+	tw.spots = []
+	var d := 0.0
+	while d < path.total:
+		var p := MapArt.pos_at(path, d)
+		if p.distance_to(Vector2(tw.x, tw.y)) <= tw.s.range and p.x > 0 and p.x < W and p.y > 0 and p.y < H:
+			tw.spots.append(d)
+		d += 10
+
+
+## Pokémon Ditto can't turn into: legendaries, ones that sit on the path, and
+## ones whose power is helping others.
+const NO_COPY := ["ditto", "mewtwo", "snorlax", "abra", "chansey"]
+
+
+## Ditto's stats: those of the closest Pokémon in range, with as many of its
+## upgrades as Ditto has learned to copy. Plain Ditto stats if nobody is near.
+func ditto_stats(tw: Tower, a: int, b: int) -> Dictionary:
+	var own := Data.compute_stats("ditto", a, b)
+	var best_o: Tower = null
+	var best_d := INF
+	for o in towers:
+		if o == tw or NO_COPY.has(o.kind):
+			continue
+		var dd := Vector2(o.x - tw.x, o.y - tw.y).length()
+		if dd <= own.range and dd < best_d:
+			best_d = dd
+			best_o = o
+	if best_o == null:
+		own.copy = ""
+		return own
+	var ca := mini(best_o.a, int(own.copyA))
+	var cb := mini(best_o.b, int(own.copyB))
+	var k: String = best_o.kind if ca > 0 else Data.base_kind(best_o.kind)
+	var s := Data.compute_stats(k, ca, cb)
+	s.copy = k
+	s.copyTier = ca
+	s.copyA = own.copyA
+	s.copyB = own.copyB
+	return s
+
+
+## Stats a Pokémon would have with these upgrades, before auras.
+func stats_for(tw: Tower, a: int, b: int, kind := "") -> Dictionary:
+	if tw.kind == "ditto":
+		return ditto_stats(tw, a, b)
+	return Data.compute_stats(kind if kind != "" else tw.kind, a, b)
 
 
 ## Recomputes every Pokémon's stats, adding Abra-line auras and Dragon Dance.
 func refresh_buffs() -> void:
 	var abras := towers.filter(func(o): return o.kind == "abra")
+	var luckies := towers.filter(func(o): return o.kind == "chansey" and Data.compute_stats("chansey", o.a, o.b).lucky)
 	for tw in towers:
-		var s := Data.compute_stats(tw.kind, tw.a, tw.b)
+		var s := stats_for(tw, tw.a, tw.b)
 		tw.buffed = false
+		tw.type = Data.TOWERS[tw.kind].type
+		if tw.kind == "ditto":
+			if s.copy != tw.copy:
+				tw.copy = s.copy
+				tw.timers = {}
+				if tw.copy == "geodude":
+					tw.s = s
+					_find_spots(tw)
+			if tw.copy != "":
+				tw.type = Data.TOWERS[tw.copy].type
+		tw.lucky = false
+		for ch in luckies:
+			if ch != tw and Vector2(ch.x - tw.x, ch.y - tw.y).length() <= ch.s.range:
+				tw.lucky = true
 		if tw.kind != "abra":
 			var rate_k := 1.0
 			var dmg_k := 0
@@ -441,12 +501,18 @@ func upgrade_state(tw: Tower, p: String) -> String:
 	return "open"
 
 
-func upgrade(tw: Tower, p: String) -> void:
+## Buys the next upgrade on path "a" or "b". Eevee's first evolution needs a
+## branch: the kind it evolves into.
+func upgrade(tw: Tower, p: String, branch := "") -> void:
 	var d: Dictionary = Data.TOWERS[tw.kind]
-	var list: Array = d.A if p == "a" else d.B
 	if upgrade_state(tw, p) != "open":
 		return
 	var tier: int = tw.a if p == "a" else tw.b
+	if p == "a" and d.has("branches"):
+		if not d.branches.has(branch):
+			return
+		d = Data.TOWERS[branch]
+	var list: Array = d.A if p == "a" else d.B
 	var u: Dictionary = list[tier]
 	var cost := upgrade_cost(u.cost)
 	if money < cost:
@@ -455,6 +521,8 @@ func upgrade(tw: Tower, p: String) -> void:
 	candy = false
 	tw.spent += cost
 	var before: String = Art.SPRITE_INFO[Data.sprite_for(tw.kind, tw.a)].name
+	if branch != "" and p == "a":
+		tw.kind = branch
 	if p == "a":
 		tw.a += 1
 	else:
@@ -550,7 +618,7 @@ func update_tower(tw: Tower, dt: float) -> void:
 		tw.outr -= dt
 		dt *= 3
 	tw.cd -= dt
-	match tw.kind:
+	match tw.copy if tw.kind == "ditto" and tw.copy != "" else tw.kind:
 		"pikachu":
 			if s.gmax and _timer(tw, "g", 3, dt):
 				var vic := balls.filter(func(b): return not b.dead and not armored(b))
@@ -1091,6 +1159,99 @@ func update_tower(tw: Tower, dt: float) -> void:
 			fx.append({"kind": "dragon", "x1": tw.x, "y1": tw.y - 10, "x2": tgt.x, "y2": tgt.y, "life": .2, "max": .2})
 			damage(tgt, s.dmg * (s.bossMul if boss else 1) + (s.rage if boss else 0), tw)
 			sfx.emit(420, .07, "sawtooth", .02)
+		"eevee", "vaporeon", "jolteon", "flareon":
+			if s.muddy and _timer(tw, "m", 2, dt):
+				var v := in_range(tw.x, tw.y, s.range, s.detect)
+				if v.size():
+					tw.timers.m = s.muddy
+					fx.append({"kind": "ring", "x": tw.x, "y": tw.y, "r": 14, "to": s.range, "life": .45, "max": .45, "col": Color("#7a9ad0"), "w": 10, "fill": Color("#6a5a3a")})
+					for b in v:
+						damage(b, s.muddyDmg, tw)
+						push_back(b, 40)
+						b.wet = 1.5
+					shake = maxf(shake, 3)
+					sfx.emit(140, .35, "sawtooth", .04)
+				else:
+					tw.timers.m = .3
+			if s.volt and _timer(tw, "v", 3, dt):
+				var v := in_range(tw.x, tw.y, s.range, s.detect)
+				if v.size():
+					tw.timers.v = s.volt
+					for b in v:
+						fx.append({"kind": "bolt", "pts": [Vector2(b.x + (randf() - .5) * 20, b.y - 60), Vector2(b.x, b.y)], "life": .2, "max": .2, "col": Color("#fff6a8"), "w": 2.6})
+						damage(b, 8, tw)
+					fx.append({"kind": "text", "x": tw.x, "y": tw.y - 34, "text": "Thunder Fang!", "col": Color("#fff38a"), "life": 1.0, "max": 1.0, "big": true})
+					shake = maxf(shake, 3)
+					sfx.emit(110, .3, "sawtooth", .05)
+				else:
+					tw.timers.v = .3
+			if s.resort and _timer(tw, "r", 3, dt):
+				var best_b := strongest(in_range(tw.x, tw.y, s.range, s.detect))
+				if best_b:
+					tw.timers.r = s.resort
+					fx.append({"kind": "ring", "x": best_b.x, "y": best_b.y, "r": 4, "to": 36, "life": .35, "max": .35, "col": Color("#ffd23f"), "w": 5})
+					fx.append({"kind": "text", "x": tw.x, "y": tw.y - 34, "text": "Last Resort!", "col": Color("#ffe6a0"), "life": 1.0, "max": 1.0})
+					damage(best_b, 25, tw)
+					sfx.emit(200, .2, "square", .04)
+				else:
+					tw.timers.r = .3
+			if tw.cd > 0:
+				return
+			var electric := tw.type == "Electric"
+			var tg := pick_targets(tw, s.targets, (func(b): return not armored(b)) if electric else null)
+			if tg.is_empty():
+				return
+			tw.cd = s.rate; tw.face = -1 if tg[0].x < tw.x else 1
+			var col: Color = {"Water": Color("#7cc4ff"), "Electric": Color("#fff38a"), "Fire": Color("#ffa040")}.get(tw.type, Color("#ffe6a0"))
+			for b in tg:
+				fx.append({"kind": "swift", "x1": tw.x, "y1": tw.y - 10, "x2": b.x, "y2": b.y, "life": .2, "max": .2, "col": col})
+				var hit: Array = [b]
+				if s.area:
+					for o in in_range(b.x, b.y, s.area, s.detect):
+						if o != b:
+							hit.append(o)
+				for o in hit:
+					if electric and armored(o):
+						continue
+					if s.burn:
+						o.burn = {"left": s.burn, "every": .75, "timer": .75, "dmg": s.burnMul, "src": tw}
+					if s.soak:
+						o.wet = 1.5
+					damage(o, s.dmg, tw)
+			sfx.emit(1100 + randf() * 200, .04, "triangle", .015)
+		"ditto":
+			# not transformed: a feeble Pound
+			if tw.cd > 0:
+				return
+			var tgt := pick_target(tw)
+			if not tgt:
+				return
+			tw.cd = s.rate; tw.face = -1 if tgt.x < tw.x else 1
+			fx.append({"kind": "punch", "x": tgt.x, "y": tgt.y, "life": .2, "max": .2})
+			damage(tgt, s.dmg, tw)
+			sfx.emit(260, .05, "square", .015)
+		"chansey":
+			if s.safeguard:
+				tw.timers.sg = maxf(0, tw.timers.get("sg", 0.0) - dt)
+			if s.toss and _timer(tw, "t", 2, dt):
+				var best_b := strongest(in_range(tw.x, tw.y, s.range, s.detect))
+				if best_b:
+					tw.timers.t = s.toss
+					fx.append({"kind": "ring", "x": best_b.x, "y": best_b.y, "r": 4, "to": 40, "life": .35, "max": .35, "col": Color("#ffb3d0"), "w": 6})
+					fx.append({"kind": "text", "x": tw.x, "y": tw.y - 34, "text": "Seismic Toss!", "col": Color("#ffd0e0"), "life": 1.0, "max": 1.0})
+					damage(best_b, 15, tw)
+					shake = maxf(shake, 2)
+					sfx.emit(120, .2, "square", .04)
+				else:
+					tw.timers.t = .3
+			if tw.cd > 0:
+				return
+			var tgt := pick_target(tw)
+			if not tgt:
+				return
+			tw.cd = s.rate; tw.face = -1 if tgt.x < tw.x else 1
+			proj.append({"kind": "egg", "x": tw.x, "y": tw.y - 6, "tgt": tgt, "tx": tgt.x, "ty": tgt.y, "src": tw, "spd": 380.0, "life": 1.2, "rot": 0.0})
+			sfx.emit(700, .05, "sine", .015)
 
 
 ## Solar Beam: fires across the whole map, aimed through as many balls as possible.
@@ -1135,6 +1296,21 @@ func explode(p: Dictionary) -> void:
 			b.sleep = s.sleep
 			b.sleep_cd = s.sleep + .6
 		damage(b, s.dmg + (s.dream if sleeping else 0), src)
+
+
+## Chansey's Safeguard: a ready one sends a leaking ball back to the start.
+func _safeguard(b: Ball) -> bool:
+	for tw in towers:
+		if tw.s.safeguard and tw.timers.get("sg", 0.0) <= 0:
+			tw.timers.sg = tw.s.safeguard
+			b.d = 0
+			var p := MapArt.pos_at(path, 0)
+			b.x = p.x; b.y = p.y
+			fx.append({"kind": "text", "x": end_pt.x, "y": end_pt.y - 40, "text": "Safeguard!", "col": Color("#ffb3d0"), "life": 1.2, "max": 1.2, "big": true})
+			fx.append({"kind": "ring", "x": end_pt.x, "y": end_pt.y, "r": 8, "to": 50, "life": .4, "max": .4, "col": Color("#ffb3d0"), "w": 5})
+			sfx.emit(880, .2, "triangle", .04)
+			return true
+	return false
 
 
 # ---------- loop ----------
@@ -1217,6 +1393,8 @@ func step(dt: float) -> void:
 					b.seed = null
 				money += 1
 				damage(b, 1, sd.src)
+		if not b.dead and b.d >= path.total and not def.get("boss", false) and _safeguard(b):
+			continue
 		if not b.dead and b.d >= path.total:
 			b.dead = true
 			lives -= Data.rbe(b.type)
@@ -1289,6 +1467,19 @@ func step(dt: float) -> void:
 				for i in 5:
 					var a := randf() * TAU
 					parts.append({"x": p.x, "y": p.y, "vx": cos(a) * 60, "vy": sin(a) * 60, "life": .3, "max": .3, "col": Color("#a08a6a"), "size": 2.6})
+			elif p.kind == "egg":
+				var s := src.s
+				var hit: Array = [] if tgt.dead else [tgt]
+				if s.eggArea:
+					for o in in_range(p.x, p.y, s.eggArea, s.detect):
+						if not hit.has(o):
+							hit.append(o)
+					fx.append({"kind": "ring", "x": p.x, "y": p.y, "r": 4, "to": s.eggArea, "life": .3, "max": .3, "col": Color("#fff4d8"), "w": 4, "fill": Color("#ffe08a")})
+				for o in hit:
+					damage(o, s.dmg, src)
+				for i in 6:
+					var a := randf() * TAU
+					parts.append({"x": p.x, "y": p.y, "vx": cos(a) * 70, "vy": sin(a) * 70, "life": .3, "max": .3, "col": Color("#fffaf0") if i % 2 else Color("#ffd23f"), "size": 2.4})
 			elif p.kind == "coin":
 				if not tgt.dead:
 					damage(tgt, 4, src)
@@ -1378,6 +1569,13 @@ func wave_done() -> void:
 			pay += int(tw.s.pay)
 			pay_day(tw, int(tw.s.pay))
 	money += pay
+	var healed := 0
+	for tw in towers:
+		if tw.s.heal and lives < start_lives:
+			var h := mini(int(tw.s.heal), start_lives - lives)
+			lives += h
+			healed += h
+			fx.append({"kind": "text", "x": tw.x, "y": tw.y - 34, "text": "Soft-Boiled +%d HP" % h, "col": Color("#ffb3d0"), "life": 1.6, "max": 1.6, "big": true})
 	var dancers := false
 	for tw in towers:
 		if tw.s.dance:
@@ -1392,7 +1590,7 @@ func wave_done() -> void:
 		won = true
 		ended.emit(true)
 	else:
-		toast.emit("Wave %d cleared. +₽%d%s" % [wave, bonus, (" and ₽%d from Pay Day" % pay) if pay else ""])
+		toast.emit("Wave %d cleared. +₽%d%s%s" % [wave, bonus, (" and ₽%d from Pay Day" % pay) if pay else "", (". Chansey healed %d HP" % healed) if healed else ""])
 	wave_cleared.emit()
 
 
