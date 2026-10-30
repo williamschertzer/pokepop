@@ -24,13 +24,11 @@ All the art is drawn with code, just like the web version. There are no official
 
 ## 2. Download ready-made builds (no Godot needed)
 
-Every time the `godot` folder changes on GitHub, GitHub builds the game for you:
+Every time something is merged into `main`, GitHub builds the game for every platform and puts the files on the **[latest release](https://github.com/williamschertzer/pokepop/releases/latest)** page: `PokePop-Windows.zip`, `PokePop-macOS.zip`, `PokePop-Linux.zip`, `PokePop-Android.apk` and `PokePop-Web.zip`. The web build is also published to https://williamschertzer.github.io/pokepop/. The [main README](../README.md#download-for-mac-windows-linux-or-android) explains how to start each one, including the extra first-launch step on a Mac.
 
-1. Open the repo on GitHub and click the **Actions** tab.
-2. Click the newest **Build Godot game** run with a green tick.
-3. Scroll to **Artifacts** at the bottom and download **PokePop-Android**, **PokePop-Windows**, **PokePop-macOS**, **PokePop-Linux** or **PokePop-Web**. Each downloads as a zip; unzip it first.
+Builds of a pull request that isn't merged yet are on its **Build Godot game** run in the **Actions** tab, under **Artifacts** at the bottom of the page.
 
-The Android build is a test build (signed with a debug key), which is fine for installing on your own phones. See the notes below for what to do with each file.
+The Android build is a test build (signed with a debug key), which is fine for installing on your own phones.
 
 ## 3. Make a playable copy yourself (exporting)
 
@@ -44,7 +42,7 @@ What you get for each one:
 
 - **Web:** a folder with an `index.html` and a few other files. Upload the whole folder to a website host. On [itch.io](https://itch.io), zip the folder, upload the zip, and tick "This file will be played in the browser". (Opening `index.html` straight from your computer won't work; browsers need it to come from a web server. To try it locally, click the small browser icon next to the Play button in Godot.)
 - **Windows:** a single `PokePop.exe`. Double-click it to play. Windows may warn that the app is from an unknown publisher; click **More info → Run anyway**.
-- **macOS:** a zip containing the app. Unzip it, then right-click the app and choose **Open** the first time (Apple blocks unsigned apps on a normal double-click).
+- **macOS:** a zip containing the app. Unzip it. The first time, Apple blocks it because it isn't signed by a paid developer account: try to open it, then go to **System Settings → Privacy & Security** and click **Open Anyway** (on older macOS, right-click the app and choose **Open**).
 - **Linux:** a single `PokePop.x86_64` file.
 - **Android:** an `.apk` file. Android needs two extra free tools first; see below.
 
