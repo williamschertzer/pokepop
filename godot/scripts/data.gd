@@ -311,7 +311,33 @@ const MAPS := [
 		"path": [[480, -40], [480, 140], [190, 140], [190, 460], [760, 460], [760, 270], [1000, 270]]},
 	{"id": "mtmoon", "name": "Mt. Moon", "sub": "Short tunnels, no room for error", "diff": "Expert", "lives": 50, "cash": 750, "theme": "cave",
 		"path": [[-40, 300], [290, 300], [290, 120], [630, 120], [630, 470], [1000, 470]]},
+	{"id": "route12", "name": "Route 12", "sub": "A wild Snorlax is blocking the way", "diff": "Medium", "lives": 100, "cash": 750, "theme": "coast",
+		"path": [[-40, 520], [260, 520], [260, 300], [120, 300], [120, 90], [520, 90], [520, 410], [700, 410], [700, 160], [1000, 160]],
+		"water": [["rect", 780, -10, 200, 620], ["ell", 400, 515, 92, 50]]},
+	{"id": "rocktunnel", "name": "Rock Tunnel", "sub": "Pitch dark and packed with boulders", "diff": "Hard", "lives": 75, "cash": 750, "theme": "tunnel",
+		"path": [[-40, 80], [840, 80], [840, 240], [140, 240], [140, 400], [840, 400], [840, 540], [-40, 540]]},
+	{"id": "seafoam", "name": "Seafoam Islands", "sub": "Ice blocks and freezing currents", "diff": "Expert", "lives": 50, "cash": 750, "theme": "ice",
+		"path": [[-40, 150], [330, 150], [330, 470], [630, 470], [630, 130], [1000, 130]],
+		"water": [["ell", 480, 300, 96, 118], ["ell", 830, 400, 120, 105], ["ell", 120, 420, 105, 85]]},
+	{"id": "victory", "name": "Victory Road", "sub": "The last test before the League", "diff": "Expert", "lives": 40, "cash": 750, "theme": "victory",
+		"path": [[-40, 460], [220, 460], [220, 160], [480, 160], [480, 440], [740, 440], [740, 140], [1000, 140]]},
 ]
+
+## Things on a map that a Pokémon can clear away, freeing the spot for another
+## Pokémon. "by" lists who can do it (any evolution) and the move they use; one of
+## them has to be on the field. "find" is money sometimes found underneath.
+const OBSTACLES := {
+	"tree": {"name": "Tree", "cost": 60, "by": {"machop": "Strength", "bulbasaur": "Cut"}},
+	"pine": {"name": "Pine tree", "cost": 60, "by": {"machop": "Strength", "bulbasaur": "Cut"}},
+	"deadtree": {"name": "Dead tree", "cost": 40, "by": {"charmander": "Ember", "machop": "Strength", "bulbasaur": "Cut"}},
+	"rock": {"name": "Rock", "cost": 50, "by": {"geodude": "Rock Smash", "machop": "Rock Smash"}, "find": 150, "chance": .15, "note": "Sometimes hides a Nugget worth ₽150."},
+	"boulder": {"name": "Boulder", "cost": 120, "by": {"machop": "Strength"}, "note": "Too big for Rock Smash. Only Strength moves it."},
+	"ice": {"name": "Ice block", "cost": 80, "by": {"charmander": "Flamethrower"}, "note": "Only fire melts it."},
+	"sleeper": {"name": "Sleeping Snorlax", "cost": 200, "by": {"pikachu": "Thunder Shock"}, "find": 100, "chance": 1.0, "note": "A jolt wakes it up and it wanders off, dropping Leftovers worth ₽100."},
+}
+
+## Pokémon that can stand in water. Everyone else needs dry land.
+const SWIMMERS := ["squirtle", "magikarp", "lapras"]
 
 const DIFF_COLORS := {"Easy": "#5fd38a", "Medium": "#ffd23f", "Hard": "#ff9a4a", "Expert": "#ff6b6b"}
 

@@ -43,6 +43,9 @@ var _info_box: VBoxContainer
 var _sheet: PanelContainer
 var _sheet_box: VBoxContainer
 var _sheet_pops: Label
+var _clear_btn: Button
+var _obs_card: PanelContainer
+var _obs_box: VBoxContainer
 var _cost_widgets: Array = []
 var _toast: PanelContainer
 var _toast_lbl: Label
@@ -541,6 +544,8 @@ func _build() -> void:
 	stage.position = Vector2(15, 71)
 	add_child(stage)
 	stage.tower_clicked.connect(_on_tower_clicked)
+	stage.obstacle_clicked.connect(_on_obstacle_clicked)
+	game.obstacles_changed.connect(stage.refresh_bg)
 	stage.place_requested.connect(_try_place)
 	stage.touch_preview.connect(func(x, y): _show_toast("Tap again to place" if game.can_place(stage.placing, x, y) else "Can't place there"))
 
@@ -557,6 +562,15 @@ func _build() -> void:
 	_sheet_box = _vbox(10)
 	_sheet_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(_sheet_box)
+
+	# what a tapped obstacle is and who can clear it
+	_obs_card = PanelContainer.new()
+	_obs_card.add_theme_stylebox_override("panel", _sb(Color(22 / 255.0, 25 / 255.0, 54 / 255.0, .96), 14, 12, 2, LINE))
+	_obs_card.visible = false
+	stage.add_child(_obs_card)
+	_obs_box = _vbox(8)
+	_obs_box.custom_minimum_size.x = 270
+	_obs_card.add_child(_obs_box)
 
 	# toast
 	_toast = PanelContainer.new()
@@ -726,7 +740,7 @@ func _build_menu() -> void:
 		pv.add_child(tl)
 		p.add_child(pv)
 		how.add_child(p)
-	var help := _lbl("Drag a Pokémon from your Party onto the map, or click it and then click the map. Keys: 1 to 9 and 0 pick a Pokémon, Space starts a wave, F changes speed, P pauses, Esc cancels or opens the menu. On a touch screen you can also tap a spot to preview and tap it again to place.", 12.5, MUTED, f_light, true)
+	var help := _lbl("Drag a Pokémon from your Party onto the map, or click it and then click the map. Keys: 1 to 9 and 0 pick a Pokémon, Space starts a wave, F changes speed, P pauses, Esc cancels or opens the menu. On a touch screen you can also tap a spot to preview and tap it again to place. Rocks, trees, boulders, ice and even a sleeping Snorlax take up good spots: tap one to see which Pokémon can clear it. Only Squirtle, Magikarp and Lapras can stand in water.", 12.5, MUTED, f_light, true)
 	v.add_child(help)
 
 
@@ -1191,6 +1205,7 @@ func _after_map_loaded() -> void:
 	stage.placing = ""
 	stage.ghost = null
 	stage.selected = null
+	stage.sel_obs = null
 	stage.refresh_bg()
 	var mode := "" if game.diff == "normal" else " · %s mode" % Data.DIFFS[game.diff].name
 	_mapname_lbl.text = ("%s · %s%s" % [m.name, m.diff, mode]).to_upper()
@@ -1293,6 +1308,7 @@ func _update_hud(force := false) -> void:
 		var poor: bool = game.money < Data.TOWERS[k].cost
 		b.disabled = poor or game.map == null or not _unlocked(k)
 		b.modulate.a = .45 if b.disabled else 1.0
+	_update_clear_btn()
 	for id in _item_buttons:
 		var ib: Button = _item_buttons[id]
 		var cost := game.item_cost(id)
@@ -1472,7 +1488,7 @@ func _try_place(x: float, y: float, keep: bool) -> void:
 		_show_toast("Need ₽%d more for %s" % [d.cost - game.money, d.name])
 		return
 	if not game.can_place(k, x, y):
-		_show_toast("Can't place there. Keep off the path and obstacles.")
+		_show_toast(game.place_hint(k, x, y))
 		return
 	var tw := game.place_tower(k, x, y)
 	_save_run()
@@ -1487,6 +1503,26 @@ func _try_place(x: float, y: float, keep: bool) -> void:
 
 func _on_tower_clicked(tw) -> void:
 	stage.selected = tw
+	stage.sel_obs = null
+	_render_info()
+
+
+func _on_obstacle_clicked(o: Dictionary) -> void:
+	stage.selected = null
+	stage.sel_obs = null if stage.sel_obs == o else o
+	_render_info()
+
+
+func _clear_obstacle() -> void:
+	var o = stage.sel_obs
+	if o == null:
+		return
+	var err := game.clear_obstacle(o)
+	if err != "":
+		_show_toast(err)
+		return
+	stage.sel_obs = null
+	_save_run()
 	_render_info()
 
 
@@ -1496,6 +1532,7 @@ func _render_info() -> void:
 		stage.selected = null
 	_render_side()
 	_render_sheet()
+	_render_obstacle()
 	_update_hud(true)
 
 
@@ -1538,6 +1575,53 @@ func _render_side() -> void:
 			rl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(rl)
 			_info_box.add_child(row)
+
+
+func _render_obstacle() -> void:
+	_clear(_obs_box)
+	_clear_btn = null
+	if stage.placing != "" or stage.selected or (stage.sel_obs != null and not game.obs.has(stage.sel_obs)):
+		stage.sel_obs = null
+	var o = stage.sel_obs
+	_obs_card.visible = o != null
+	if o == null:
+		return
+	var od: Dictionary = Data.OBSTACLES[o.kind]
+	var right: bool = o.x < Data.W / 2
+	_obs_card.position = Vector2(minf(o.x + o.r + 18, Data.W - 300) if right else maxf(o.x - o.r - 18 - 296, 10), clampf(o.y - 90, 10, Data.H - 330))
+	_obs_card.size = Vector2.ZERO
+	_obs_box.add_child(_lbl(od.name, 18, TEXT, f_disp))
+	_obs_box.add_child(_lbl("It's taking up a spot. Clear it away to make room for a Pokémon.", 12.5, MUTED, f_light, true))
+	if od.has("note"):
+		_obs_box.add_child(_lbl(od.note, 12.5, MUTED, f_light, true))
+	_obs_box.add_child(_caps("Who can clear it"))
+	var have := game.clearers(o)
+	for k in od.by:
+		var row := _hbox(8)
+		var icon := MonIcon.new(Data.sprite_for(k, 0), 36, .6, INSET)
+		row.add_child(icon)
+		var tv := _vbox(0)
+		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tv.add_child(_lbl(Data.TOWERS[k].name, 12.5, TEXT, f_bold))
+		var on_field := have.any(func(tw): return tw.kind == k)
+		var state := "On the field" if on_field else ("Not placed yet" if _unlocked(k) else "Not unlocked yet")
+		tv.add_child(_lbl("%s · %s" % [od.by[k], state], 11.5, GOLD if on_field else MUTED, f_light, true))
+		row.add_child(tv)
+		_obs_box.add_child(row)
+	_clear_btn = _btn("Clear it for ₽%d" % od.cost, GOLD, Color("#2b2200"), Color("#ffe07a"))
+	_clear_btn.pressed.connect(_clear_obstacle)
+	_obs_box.add_child(_clear_btn)
+	if have.is_empty():
+		var names: Array = od.by.keys().map(func(k): return Data.TOWERS[k].name)
+		_obs_box.add_child(_lbl("Place %s anywhere on the map first." % " or ".join(names), 12.5, MUTED, f_light, true))
+	_update_clear_btn()
+
+
+func _update_clear_btn() -> void:
+	if _clear_btn == null or stage.sel_obs == null:
+		return
+	var od: Dictionary = Data.OBSTACLES[stage.sel_obs.kind]
+	_clear_btn.disabled = game.money < od.cost or game.clearers(stage.sel_obs).is_empty()
 
 
 func _stats_for(kind: String, s: Dictionary) -> Array:
@@ -1822,10 +1906,11 @@ func _back() -> void:
 		pass
 	elif _menu.visible:
 		_menu_back()
-	elif stage.placing != "" or stage.selected:
+	elif stage.placing != "" or stage.selected or stage.sel_obs != null:
 		stage.placing = ""
 		stage.ghost = null
 		stage.selected = null
+		stage.sel_obs = null
 		_render_shop()
 		_render_info()
 	else:
