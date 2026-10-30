@@ -71,11 +71,32 @@ var _stat_labels: Array = []
 var _drag_kind := ""
 var _drag_on_field := false
 var _drag_start := Vector2.ZERO
+var _press_pos := Vector2.ZERO  # where the last press landed, from the event itself
 var _diff_box: HBoxContainer
 var _items_box: HBoxContainer
 var _item_buttons := {}
 var _dex: Control
 var _dex_box: VBoxContainer
+
+# phone layout (see _build_phone): the field fills the height of a landscape
+# screen, a rail beside it holds the HUD and Party, and details slide in as drawers
+const PHONE_BASE := Vector2i(720, 400)
+const RAIL_MIN := 236.0
+static var _reopen_settings := false  # survive the reload when the layout changes
+var _phone := false
+var _layout := "auto"  # Settings: "auto", "desktop" or "phone"
+var _frame: Panel
+var _rail: VBoxContainer
+var _party_box: PanelContainer
+var _peek: PanelContainer
+var _peek_box: VBoxContainer
+var _peek_kind := ""
+var _rotate: Control
+var _title_box: VBoxContainer
+var _title_btns: GridContainer
+var _end_box: VBoxContainer
+var _menu_m: MarginContainer
+var _how_grid: GridContainer
 
 
 # ---------- small widgets ----------
@@ -216,11 +237,13 @@ class CardButton extends PanelContainer:
 	var hover: StyleBox
 	var disabled := false
 	var _over := false
+	var _down = null  # where the press started, or null
 
 	func _init(n: StyleBox, h: StyleBox) -> void:
 		normal = n
 		hover = h
-		mouse_filter = Control.MOUSE_FILTER_STOP
+		# pass events on, so dragging a finger across cards still scrolls the list
+		mouse_filter = Control.MOUSE_FILTER_PASS
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		add_theme_stylebox_override("panel", n)
 		mouse_entered.connect(func(): _over = true; _restyle())
@@ -234,16 +257,33 @@ class CardButton extends PanelContainer:
 	func _restyle() -> void:
 		add_theme_stylebox_override("panel", hover if _over and not disabled else normal)
 
+	## Fires on release, and only if the pointer barely moved, so a finger that
+	## scrolls past a card doesn't buy an upgrade by accident.
 	func _gui_input(e: InputEvent) -> void:
-		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and not disabled:
-			pressed.emit()
-			accept_event()
+		if not (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT) or disabled:
+			return
+		if e.pressed:
+			_down = e.global_position
+		elif _down != null:
+			var moved: float = e.global_position.distance_to(_down)
+			_down = null
+			if moved < 14 and get_global_rect().has_point(e.global_position):
+				# deferred: buying an upgrade rebuilds the panel this card is in
+				pressed.emit.call_deferred()
 
 
 # ---------- setup ----------
 func _ready() -> void:
 	_load_fonts()
 	_load_save()
+	_phone = _want_phone()
+	var win := get_tree().root
+	if _phone:
+		win.content_scale_size = PHONE_BASE
+		win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	else:
+		win.content_scale_size = Vector2i(1280, 684)
+		win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	var th := Theme.new()
 	th.default_font = f_body
 	th.default_font_size = 14
@@ -266,6 +306,23 @@ func _ready() -> void:
 	_render_info()
 	_show_title()
 	get_viewport().size_changed.connect(_layout_check)
+	_layout_check()
+	if _reopen_settings:
+		_reopen_settings = false
+		_settings.visible = true
+
+
+## The phone layout is for small touch screens: phones, not tablets or laptops.
+func _want_phone() -> bool:
+	if _layout != "auto":
+		return _layout == "phone"
+	if not DisplayServer.is_touchscreen_available():
+		return false
+	var k := DisplayServer.screen_get_scale()
+	if OS.has_feature("android") or OS.has_feature("ios"):
+		k = maxf(k, DisplayServer.screen_get_dpi() / 160.0)
+	var css := Vector2(DisplayServer.window_get_size()) / maxf(k, 1.0)
+	return minf(css.x, css.y) < 560
 
 
 func _font(path: String, wght: int, spacing := 0) -> Font:
@@ -309,6 +366,7 @@ func _load_save() -> void:
 		_run = cf.get_value("save", "run", {})
 		_diff = cf.get_value("save", "diff", "normal")
 		_unlock_all = cf.get_value("save", "unlock_all", false)
+		_layout = cf.get_value("save", "layout", "auto")
 	_apply_volume()
 
 
@@ -321,6 +379,7 @@ func _save() -> void:
 	cf.set_value("save", "run", _run)
 	cf.set_value("save", "diff", _diff)
 	cf.set_value("save", "unlock_all", _unlock_all)
+	cf.set_value("save", "layout", _layout)
 	cf.save(SAVE_PATH)
 
 
@@ -370,10 +429,6 @@ func _clear_run() -> void:
 	_save()
 
 
-func _layout_check() -> void:
-	pass
-
-
 # ---------- builders ----------
 func _sb(bg: Color, radius := 12, pad := 12, border := 0, border_col := LINE) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
@@ -387,10 +442,17 @@ func _sb(bg: Color, radius := 12, pad := 12, border := 0, border_col := LINE) ->
 	return s
 
 
+## Text is a little larger on a phone, and never smaller than a phone can show.
+func _fs(size: float, caps := false) -> int:
+	if _phone:
+		size = maxf(size * 1.1, 10.5 if caps else 12.0)
+	return int(round(size))
+
+
 func _lbl(text: String, size := 14.0, col := TEXT, font: Font = null, wrap := false) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.add_theme_font_size_override("font_size", int(round(size)))
+	l.add_theme_font_size_override("font_size", _fs(size, font == f_caps))
 	l.add_theme_color_override("font_color", col)
 	if font:
 		l.add_theme_font_override("font", font)
@@ -421,7 +483,7 @@ func _btn(text: String, bg := PANEL2, fg := TEXT, hover := Color("#3a4280"), rad
 	b.text = text
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_override("font", f_bold)
-	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_font_size_override("font_size", _fs(14))
 	for st in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
 		b.add_theme_color_override(st, fg)
 	b.add_theme_color_override("font_disabled_color", Color(fg, .45))
@@ -477,7 +539,21 @@ func _build() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	if _phone:
+		_build_phone()
+	else:
+		_build_desktop()
+	_build_pause_menu()
+	_build_menu()
+	_build_end()
+	_build_title()
+	_build_dex()
+	_build_settings()
+	if _phone:
+		_build_rotate()
 
+
+func _build_desktop() -> void:
 	# header
 	var head := PanelContainer.new()
 	var hs := _sb(RED, 14, 10)
@@ -539,15 +615,8 @@ func _build() -> void:
 	frame.position = Vector2(12, 68)
 	frame.size = Vector2(966, 606)
 	add_child(frame)
-	stage = Stage.new()
-	stage.game = game
+	_make_stage()
 	stage.position = Vector2(15, 71)
-	add_child(stage)
-	stage.tower_clicked.connect(_on_tower_clicked)
-	stage.obstacle_clicked.connect(_on_obstacle_clicked)
-	game.obstacles_changed.connect(stage.refresh_bg)
-	stage.place_requested.connect(_try_place)
-	stage.touch_preview.connect(func(x, y): _show_toast("Tap again to place" if game.can_place(stage.placing, x, y) else "Can't place there"))
 
 	# upgrade overlay on the field
 	_sheet = PanelContainer.new()
@@ -572,16 +641,7 @@ func _build() -> void:
 	_obs_box.custom_minimum_size.x = 270
 	_obs_card.add_child(_obs_box)
 
-	# toast
-	_toast = PanelContainer.new()
-	var ts := _sb(Color(10 / 255.0, 12 / 255.0, 30 / 255.0, .86), 99, 0)
-	ts.content_margin_left = 14; ts.content_margin_right = 14; ts.content_margin_top = 6; ts.content_margin_bottom = 7
-	_toast.add_theme_stylebox_override("panel", ts)
-	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_toast_lbl = _lbl("", 13, Color.WHITE, f_body)
-	_toast.add_child(_toast_lbl)
-	_toast.modulate.a = 0
-	stage.add_child(_toast)
+	_make_toast(stage)
 
 	# side panel
 	var side := _vbox(10)
@@ -652,12 +712,384 @@ func _build() -> void:
 	_info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc3.add_child(_info_box)
 
-	_build_pause_menu()
-	_build_menu()
-	_build_end()
-	_build_title()
-	_build_dex()
-	_build_settings()
+
+func _make_stage() -> void:
+	stage = Stage.new()
+	stage.game = game
+	add_child(stage)
+	stage.tower_clicked.connect(_on_tower_clicked)
+	stage.obstacle_clicked.connect(_on_obstacle_clicked)
+	game.obstacles_changed.connect(stage.refresh_bg)
+	stage.place_requested.connect(_try_place)
+	stage.touch_preview.connect(func(x, y): _show_toast("Tap again to place" if game.can_place(stage.placing, x, y) else "Can't place there"))
+
+
+func _make_toast(parent: Node) -> void:
+	_toast = PanelContainer.new()
+	var ts := _sb(Color(10 / 255.0, 12 / 255.0, 30 / 255.0, .86), 99, 0)
+	ts.content_margin_left = 14; ts.content_margin_right = 14; ts.content_margin_top = 6; ts.content_margin_bottom = 7
+	_toast.add_theme_stylebox_override("panel", ts)
+	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toast_lbl = _lbl("", 13, Color.WHITE, f_body)
+	_toast.add_child(_toast_lbl)
+	_toast.modulate.a = 0
+	parent.add_child(_toast)
+
+
+# ---------- phone layout ----------
+## A landscape layout for phones: the field as tall as the screen allows, and a
+## rail beside it with the HUD, the Party and the wave controls. Upgrades,
+## obstacles and Party details slide in from the side as drawers.
+func _build_phone() -> void:
+	_frame = Panel.new()
+	_frame.add_theme_stylebox_override("panel", _sb(Color("#0b0d20"), 10, 0, 2, LINE))
+	_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_frame)
+	_make_stage()
+	stage.hit_pad = 12
+
+	_rail = _vbox(6)
+	add_child(_rail)
+	var stats := _hbox(4)
+	_rail.add_child(stats)
+	var chip := func(label: String, col: Color) -> Label:
+		var p := PanelContainer.new()
+		var cs := _sb(INSET, 9, 0)
+		cs.content_margin_left = 5; cs.content_margin_right = 5; cs.content_margin_top = 3; cs.content_margin_bottom = 3
+		p.add_theme_stylebox_override("panel", cs)
+		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var r := _hbox(4)
+		r.alignment = BoxContainer.ALIGNMENT_CENTER
+		if label != "":
+			var sl := _caps(label, MUTED, 10)
+			sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			r.add_child(sl)
+		var v := _lbl("0", 15, col, f_bold)
+		r.add_child(v)
+		p.add_child(r)
+		stats.add_child(p)
+		return v
+	_lives_lbl = chip.call("HP", Color("#ff8c8c"))
+	_money_lbl = chip.call("", GOLD)
+	_wave_lbl = chip.call("Wave", TEXT)
+	_money_lbl.pivot_offset = Vector2(24, 12)
+
+	_party_box = PanelContainer.new()
+	_party_box.add_theme_stylebox_override("panel", _sb(PANEL, 10, 5))
+	_party_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_rail.add_child(_party_box)
+	_shop_grid = GridContainer.new()
+	_shop_grid.columns = 5
+	_shop_grid.add_theme_constant_override("h_separation", 4)
+	_shop_grid.add_theme_constant_override("v_separation", 4)
+	_party_box.add_child(_shop_grid)
+
+	_next_box = HFlowContainer.new()
+	_next_box.add_theme_constant_override("h_separation", 4)
+	_next_box.custom_minimum_size.y = 28
+	_next_box.clip_contents = true
+	_rail.add_child(_next_box)
+
+	_items_box = _hbox(4)
+	_rail.add_child(_items_box)
+	for id in ["potion", "repel", "candy"]:
+		var ib := _btn(Data.ITEMS[id].short, INSET, TEXT, Color("#1c2045"), 8, 3)
+		ib.add_theme_font_size_override("font_size", 12)
+		ib.add_theme_constant_override("line_spacing", -2)
+		ib.custom_minimum_size.y = 40
+		ib.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ib.clip_text = true
+		ib.pressed.connect(_use_item.bind(id))
+		_items_box.add_child(ib)
+		_item_buttons[id] = ib
+
+	var ctr := _hbox(5)
+	_rail.add_child(ctr)
+	_play_btn = _btn("Start wave 1", GREEN, Color("#0d2a18"), Color("#7be3a2"), 10, 6)
+	_play_btn.custom_minimum_size.y = 46
+	_play_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_play_btn.clip_text = true
+	_play_btn.pressed.connect(func(): game.start_wave(); _update_hud(true))
+	ctr.add_child(_play_btn)
+	_speed_btn = _btn("1×", PANEL2, TEXT, Color("#3a4280"), 10, 6)
+	_speed_btn.custom_minimum_size = Vector2(44, 46)
+	_speed_btn.pressed.connect(_cycle_speed)
+	ctr.add_child(_speed_btn)
+	_pause_btn = _btn("Menu", PANEL2, TEXT, Color("#3a4280"), 10, 6)
+	_pause_btn.custom_minimum_size = Vector2(58, 46)
+	_pause_btn.pressed.connect(_toggle_pause)
+	ctr.add_child(_pause_btn)
+
+	# drawers (the info box is unused here: the details drawer replaces it)
+	_info_box = _vbox()
+	var d := _drawer()
+	_sheet = d[0]
+	_sheet_box = d[1]
+	d = _drawer()
+	_obs_card = d[0]
+	_obs_box = d[1]
+	d = _drawer()
+	_peek = d[0]
+	_peek_box = d[1]
+	_make_toast(self)
+
+
+## A panel that slides in from the side of the screen, with a scrolling body.
+func _drawer() -> Array:
+	var p := PanelContainer.new()
+	var st := _sb(Color(22 / 255.0, 25 / 255.0, 54 / 255.0, .98), 14, 12, 2, LINE)
+	st.content_margin_right = 8
+	p.add_theme_stylebox_override("panel", st)
+	p.visible = false
+	add_child(p)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	p.add_child(sc)
+	var box := _vbox(10)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(box)
+	return [p, box]
+
+
+func _drawer_w() -> float:
+	var vs := get_viewport_rect().size
+	return clampf(_rail.size.x + 90, 330, vs.x * .62)
+
+
+## Shows a drawer on the right (or the left, so it doesn't cover the spot the
+## player is looking at), sliding it in when it wasn't open already.
+func _place_drawer(p: Control, left := false) -> void:
+	var vs := get_viewport_rect().size
+	var w := _drawer_w()
+	var x := 4.0 if left else vs.x - w - 4
+	p.size = Vector2(w, vs.y - 8)
+	_pass_through(p)
+	if p.visible and absf(p.position.x - x) < 1:
+		return
+	for o in [_sheet, _obs_card, _peek]:
+		if o != p:
+			o.visible = false
+	p.position = Vector2(x + (-w if left else w), 4)
+	p.visible = true
+	create_tween().tween_property(p, "position:x", x, .18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+## Lets a finger drag on panels and cards scroll the list they sit in.
+func _pass_through(n: Node) -> void:
+	for c in n.get_children():
+		if c is Container and not c is ScrollContainer and c.mouse_filter == Control.MOUSE_FILTER_STOP:
+			c.mouse_filter = Control.MOUSE_FILTER_PASS
+		_pass_through(c)
+
+
+func _build_rotate() -> void:
+	_rotate = _overlay(self, 1.0)
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_rotate.add_child(cc)
+	var v := _vbox(24)
+	cc.add_child(v)
+	var lens := Lens.new(4.0)
+	lens.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(lens)
+	var t := _lbl("Turn your phone sideways", 54, TEXT, f_disp_b, true)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t.custom_minimum_size.x = 600
+	v.add_child(t)
+	var sub := _lbl("PokéPop Defense plays in landscape, so the route has room to breathe.", 30, MUTED, f_light, true)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.custom_minimum_size.x = 600
+	v.add_child(sub)
+
+
+## Fits the phone layout to the screen. The computer layout has a fixed size.
+func _layout_check() -> void:
+	if not _phone or not is_inside_tree():
+		return
+	var vs := get_viewport_rect().size
+	_rotate.visible = vs.y > vs.x
+	var m := 6.0
+	var k := minf((vs.y - 2 * m - 4) / Data.H, (vs.x - RAIL_MIN - 3 * m - 4) / Data.W)
+	stage.scale = Vector2(k, k)
+	var fs := Vector2(Data.W, Data.H) * k
+	stage.position = Vector2(m + 2, (vs.y - fs.y) / 2)
+	_frame.position = stage.position - Vector2(2, 2)
+	_frame.size = fs + Vector2(4, 4)
+	var rx := _frame.position.x + _frame.size.x + m
+	_rail.position = Vector2(rx, m)
+	_rail.size = Vector2(vs.x - rx - m, vs.y - 2 * m)
+	_fit_party.call_deferred()
+	for p in [_sheet, _obs_card, _peek]:
+		if p.visible:
+			p.visible = false
+			_render_info()
+	var w := minf(560.0, vs.x - 40)
+	_title_box.size = Vector2(w, 0)
+	_title_box.position = Vector2((vs.x - w) / 2, maxf(14, vs.y * .06))
+	_title_btns.columns = 2
+	w = minf(560.0, vs.x - 48)
+	_end_box.position = Vector2((vs.x - w) / 2, maxf(24, vs.y * .12))
+	_end_box.size = Vector2(w, 0)
+	for l in [_end_title, _end_text]:
+		l.custom_minimum_size.x = w
+	_how_grid.columns = 3 if vs.x >= 780 else 2
+	if _menu.visible:
+		_open_menu()
+	if _dex.visible:
+		_open_dex()
+
+
+## Sizes the Party tiles so all of them fit beside the field without scrolling
+## (a scrolling list would fight with dragging a Pokémon out of it).
+func _fit_party() -> void:
+	# measured from the rail, not the Party box, which the tiles themselves stretch
+	var avail := _rail.size - Vector2(10, 10)
+	for c in _rail.get_children():
+		if c != _party_box:
+			avail.y -= c.get_combined_minimum_size().y + 6
+	var n := Data.KINDS.size()
+	var best := 0.0
+	var best_c := 4
+	for c in range(3, 8):
+		var rows := ceili(n / float(c))
+		var tw := (avail.x - (c - 1) * 4) / c
+		var th := (avail.y - (rows - 1) * 4) / rows
+		var fit := minf(tw, th * 1.1)
+		if fit > best:
+			best = fit
+			best_c = c
+	_shop_grid.columns = best_c
+	var rows := ceili(n / float(best_c))
+	var th := floorf((avail.y - (rows - 1) * 4) / rows)
+	for b in _shop_grid.get_children():
+		b.custom_minimum_size = Vector2(0, th)
+
+
+## Party details on a phone: what a Pokémon does before you spend money on it.
+func _peek_at(k: String) -> void:
+	if game.map == null:
+		return
+	if stage.placing == k:
+		stage.placing = ""
+		stage.ghost = null
+		_render_shop()
+		_show_toast("Cancelled")
+		return
+	_peek_kind = "" if _peek_kind == k and _peek.visible else k
+	stage.placing = ""
+	stage.ghost = null
+	stage.selected = null
+	stage.sel_obs = null
+	# rebuild after the tap finishes: the tile being tapped is replaced
+	_render_shop.call_deferred()
+	_render_info.call_deferred()
+
+
+func _render_peek() -> void:
+	_clear(_peek_box)
+	var k := _peek_kind
+	if k == "" or game.map == null:
+		_peek.visible = false
+		return
+	var d: Dictionary = Data.TOWERS[k]
+	var locked := not _unlocked(k)
+	var head := _hbox(10)
+	var icon := MonIcon.new(Data.sprite_for(k, 0), 56, .9, INSET)
+	if locked:
+		icon.modulate = Color(.15, .15, .2)
+	head.add_child(icon)
+	var hv := _vbox(3)
+	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hv.add_child(_lbl(d.name, 18, TEXT, f_disp))
+	var meta := HFlowContainer.new()
+	meta.add_theme_constant_override("h_separation", 6)
+	meta.add_child(_pill(d.type, Color(Data.TYPE_COLORS[d.type])))
+	meta.add_child(_lbl("₽%d · %s" % [d.cost, d.role], 12, MUTED, f_light))
+	hv.add_child(meta)
+	head.add_child(hv)
+	head.add_child(_close_btn(func(): _peek_kind = ""; _render_shop(); _render_info()))
+	_peek_box.add_child(head)
+	if locked:
+		_peek_box.add_child(_lbl(_lock_text(k), 12.5, GOLD, f_light, true))
+	else:
+		var short: int = d.cost - game.money
+		var place := _btn("Place %s for ₽%d" % [d.name, d.cost] if short <= 0 else "Need ₽%d more" % short, GREEN, Color("#0d2a18"), Color("#7be3a2"), 10, 10)
+		place.custom_minimum_size.y = 46
+		place.disabled = short > 0
+		place.pressed.connect(_place_from_peek.bind(k), CONNECT_DEFERRED)
+		_peek_box.add_child(place)
+		_peek_box.add_child(_lbl("Tip: you can also drag it from the Party straight onto the map.", 11.5, MUTED, f_light, true))
+	_peek_box.add_child(_lbl(d.blurb, 12.5, MUTED, f_light, true))
+	var stats := _hbox(6)
+	for st in _stats_for(k, Data.compute_stats(k, 0, 0)):
+		var p := PanelContainer.new()
+		p.add_theme_stylebox_override("panel", _sb(INSET, 8, 5))
+		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var pv := _vbox(0)
+		var vl := _lbl(_num(st[0]), 14, TEXT, f_bold)
+		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pv.add_child(vl)
+		var ll := _caps(st[1], MUTED, 9)
+		ll.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pv.add_child(ll)
+		p.add_child(pv)
+		stats.add_child(p)
+	_peek_box.add_child(stats)
+	var names := Data.path_names(k)
+	for pi in 2:
+		var list: Array = d.A if pi == 0 else d.B
+		if pi == 0 and d.has("branches"):
+			list = []
+			for br in d.branches:
+				list.append_array(Data.TOWERS[br].A)
+		var col := _vbox(4)
+		col.add_child(_caps(names[pi], GOLD if pi == 0 else Color("#7fb6ff")))
+		for u in list:
+			var row := PanelContainer.new()
+			row.add_theme_stylebox_override("panel", _sb(INSET, 8, 6))
+			var rv := _vbox(1)
+			var top := _hbox(6)
+			var nl := _lbl(u.name.replace("Evolve: ", ""), 12.5, TEXT, f_bold, true)
+			nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			top.add_child(nl)
+			top.add_child(_lbl("₽%d" % u.cost, 12, GOLD, f_bold))
+			rv.add_child(top)
+			rv.add_child(_lbl(u.desc, 11.5, MUTED, f_light, true))
+			row.add_child(rv)
+			col.add_child(row)
+		_peek_box.add_child(col)
+	_place_drawer(_peek)
+
+
+func _place_from_peek(k: String) -> void:
+	_peek_kind = ""
+	stage.placing = k
+	stage.ghost = null
+	stage.ghost_touch = false
+	_render_shop()
+	_render_info()
+	_show_toast("Tap the map where %s should go" % Data.TOWERS[k].name)
+
+
+func _close_btn(action: Callable) -> Button:
+	var x := _btn("×", PANEL2, TEXT, Color("#3a4280"), 8, 0)
+	x.custom_minimum_size = Vector2(40, 40) if _phone else Vector2(32, 32)
+	x.add_theme_font_size_override("font_size", 22 if _phone else 20)
+	x.tooltip_text = "Close"
+	x.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	x.pressed.connect(action, CONNECT_DEFERRED)
+	return x
+
+
+## What an upgrade changes, for phones where there's no hovering to preview it.
+func _upgrade_delta(tw, p: String, branch := "") -> String:
+	var cur := _stats_for(tw.kind, tw.s)
+	var nxt := _stats_for(branch if branch != "" else tw.kind, game.stats_with_buffs(tw, tw.a + int(p == "a"), tw.b + int(p == "b"), branch))
+	var out: Array = []
+	for i in mini(cur.size(), nxt.size()):
+		if _num(cur[i][0]) != _num(nxt[i][0]):
+			out.append("%s %s › %s" % [nxt[i][1], _num(cur[i][0]), _num(nxt[i][0])])
+	return ", ".join(out)
 
 
 func _build_menu() -> void:
@@ -675,12 +1107,13 @@ func _build_menu() -> void:
 	_menu.add_child(sc)
 	var m := MarginContainer.new()
 	m.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	m.add_theme_constant_override("margin_left", 150)
-	m.add_theme_constant_override("margin_right", 150)
-	m.add_theme_constant_override("margin_top", 28)
-	m.add_theme_constant_override("margin_bottom", 28)
+	m.add_theme_constant_override("margin_left", 16 if _phone else 150)
+	m.add_theme_constant_override("margin_right", 16 if _phone else 150)
+	m.add_theme_constant_override("margin_top", 12 if _phone else 28)
+	m.add_theme_constant_override("margin_bottom", 20 if _phone else 28)
 	sc.add_child(m)
-	var v := _vbox(18)
+	_menu_m = m
+	var v := _vbox(12 if _phone else 18)
 	m.add_child(v)
 	var back := _btn("‹ Back", PANEL2, TEXT, Color("#3a4280"), 10, 8)
 	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -694,7 +1127,7 @@ func _build_menu() -> void:
 	h.scroll_active = false
 	h.autowrap_mode = TextServer.AUTOWRAP_OFF
 	h.add_theme_font_override("normal_font", f_disp_b)
-	h.add_theme_font_size_override("normal_font_size", 34)
+	h.add_theme_font_size_override("normal_font_size", 26 if _phone else 34)
 	h.add_theme_color_override("default_color", TEXT)
 	h.text = "Team Rocket wants Ash's [color=#ffd23f]Pikachu[/color]."
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -703,6 +1136,9 @@ func _build_menu() -> void:
 	var lead := _lbl("Jessie, James and Meowth are firing Pokéballs down the route at Ash's Pikachu. Line the path with Pokémon and pop every ball before it reaches him. Each hit knocks a ball down one catch-rate tier, from Master Ball down to a plain Poké Ball. Evolve your team or teach them new moves, and hold out for 40 waves, when Team Rocket's Meowth balloon shows up.", 15, MUTED, f_light, true)
 	lead.custom_minimum_size.x = 640
 	lead.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	if _phone:
+		lead.custom_minimum_size.x = 0
+		lead.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(lead)
 	_diff_box = _hbox(6)
 	v.add_child(_diff_box)
@@ -713,6 +1149,7 @@ func _build_menu() -> void:
 	v.add_child(_maps_grid)
 	var how := GridContainer.new()
 	how.columns = 4
+	_how_grid = how
 	how.add_theme_constant_override("h_separation", 12)
 	how.add_theme_constant_override("v_separation", 12)
 	v.add_child(how)
@@ -736,10 +1173,13 @@ func _build_menu() -> void:
 		var pv := _vbox(3)
 		pv.add_child(_lbl(tip[0], 14, TEXT, f_bold))
 		var tl := _lbl(tip[1], 13, MUTED, f_light, true)
-		tl.custom_minimum_size.x = 210
+		tl.custom_minimum_size.x = 0 if _phone else 210
 		pv.add_child(tl)
 		p.add_child(pv)
 		how.add_child(p)
+	if _phone:
+		v.add_child(_lbl("Drag a Pokémon from your Party onto the map, or tap it in the Party to read about it first and then tap the map twice: once to preview the spot, once to place. Tap a Pokémon on the map to upgrade it. Rocks, trees, boulders, ice and even a sleeping Snorlax take up good spots: tap one to see which Pokémon can clear it. Only Squirtle, Magikarp and Lapras can stand in water.", 12.5, MUTED, f_light, true))
+		return
 	var help := _lbl("Drag a Pokémon from your Party onto the map, or click it and then click the map. Keys: 1 to 9 and 0 pick a Pokémon, Space starts a wave, F changes speed, P pauses, Esc cancels or opens the menu. On a touch screen you can also tap a spot to preview and tap it again to place. Rocks, trees, boulders, ice and even a sleeping Snorlax take up good spots: tap one to see which Pokémon can clear it. Only Squirtle, Magikarp and Lapras can stand in water.", 12.5, MUTED, f_light, true)
 	v.add_child(help)
 
@@ -754,13 +1194,14 @@ func _build_end() -> void:
 	dim.color = Color(10 / 255.0, 12 / 255.0, 32 / 255.0, .9)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_end.add_child(dim)
-	var v := _vbox(18)
+	var v := _vbox(14 if _phone else 18)
 	v.position = Vector2(380, 110)
 	v.size = Vector2(520, 0)
 	_end.add_child(v)
+	_end_box = v
 	_end_label = _caps("Game over", MUTED, 10)
 	v.add_child(_end_label)
-	_end_title = _lbl("", 34, TEXT, f_disp_b, true)
+	_end_title = _lbl("", 26 if _phone else 34, TEXT, f_disp_b, true)
 	_end_title.custom_minimum_size.x = 520
 	v.add_child(_end_title)
 	_end_text = _lbl("", 15, MUTED, f_light, true)
@@ -772,6 +1213,9 @@ func _build_end() -> void:
 	_end_primary.pressed.connect(_end_primary_pressed)
 	row.add_child(_end_primary)
 	var maps := _btn("Pick another map")
+	if _phone:
+		_end_primary.custom_minimum_size.y = 46
+		maps.custom_minimum_size.y = 46
 	maps.pressed.connect(func(): _end.visible = false; _open_menu())
 	row.add_child(maps)
 
@@ -792,7 +1236,7 @@ func _overlay(parent: Node, dim_alpha: float) -> Control:
 func _menu_btn(text: String, primary := false) -> Button:
 	var b := _btn(text, GREEN, Color("#0d2a18"), Color("#7be3a2"), 12, 12) if primary else _btn(text, PANEL2, TEXT, Color("#3a4280"), 12, 12)
 	b.add_theme_font_size_override("font_size", 17)
-	b.custom_minimum_size = Vector2(300, 50)
+	b.custom_minimum_size = Vector2(236, 46) if _phone else Vector2(300, 50)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	return b
 
@@ -826,12 +1270,13 @@ func _build_title() -> void:
 	v.position = Vector2(290, 96)
 	v.size = Vector2(700, 0)
 	_title.add_child(v)
+	_title_box = v
 	var logo := _hbox(16)
 	logo.alignment = BoxContainer.ALIGNMENT_CENTER
-	var lens := Lens.new(2.2)
+	var lens := Lens.new(1.5 if _phone else 2.2)
 	lens.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	logo.add_child(lens)
-	var name_lbl := _lbl("PokéPop Defense", 58, Color.WHITE, f_disp_b)
+	var name_lbl := _lbl("PokéPop Defense", 38 if _phone else 58, Color.WHITE, f_disp_b)
 	name_lbl.add_theme_color_override("font_shadow_color", RED_DEEP)
 	name_lbl.add_theme_constant_override("shadow_offset_y", 4)
 	name_lbl.add_theme_constant_override("shadow_offset_x", 0)
@@ -841,23 +1286,28 @@ func _build_title() -> void:
 	v.add_child(logo)
 	var sub := _lbl("Team Rocket wants Ash's Pikachu. Pop every Pokéball before it reaches him.", 16, MUTED, f_light, true)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.custom_minimum_size.x = 700
+	sub.custom_minimum_size.x = 0 if _phone else 700
 	v.add_child(sub)
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 14
+	gap.custom_minimum_size.y = 2 if _phone else 14
 	v.add_child(gap)
+	_title_btns = GridContainer.new()
+	_title_btns.add_theme_constant_override("h_separation", 12)
+	_title_btns.add_theme_constant_override("v_separation", 10 if _phone else 12)
+	_title_btns.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(_title_btns)
 	_continue_btn = _menu_btn("Continue", true)
 	_continue_btn.pressed.connect(_continue)
-	v.add_child(_continue_btn)
+	_title_btns.add_child(_continue_btn)
 	var play := _menu_btn("New game")
 	play.pressed.connect(_open_menu)
-	v.add_child(play)
+	_title_btns.add_child(play)
 	var dex := _menu_btn("Pokédex")
 	dex.pressed.connect(_open_dex)
-	v.add_child(dex)
+	_title_btns.add_child(dex)
 	var settings := _menu_btn("Settings")
 	settings.pressed.connect(func(): _settings.visible = true)
-	v.add_child(settings)
+	_title_btns.add_child(settings)
 
 
 func _has_live_run() -> bool:
@@ -903,8 +1353,8 @@ func _build_dex() -> void:
 	var m := MarginContainer.new()
 	m.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for side in ["left", "right"]:
-		m.add_theme_constant_override("margin_" + side, 90)
-	m.add_theme_constant_override("margin_top", 24)
+		m.add_theme_constant_override("margin_" + side, 14 if _phone else 90)
+	m.add_theme_constant_override("margin_top", 12 if _phone else 24)
 	m.add_theme_constant_override("margin_bottom", 28)
 	sc.add_child(m)
 	_dex_box = _vbox(12)
@@ -923,6 +1373,8 @@ func _open_dex() -> void:
 	_dex_box.add_child(_lbl("Every Pokémon you can bring and every ball Team Rocket throws. New Pokémon unlock as you beat later waves and more maps on Normal or Hard.", 14, MUTED, f_light, true))
 	var grid := GridContainer.new()
 	grid.columns = 2
+	if _phone and get_viewport_rect().size.x < 800:
+		grid.columns = 1
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 12)
 	_dex_box.add_child(grid)
@@ -930,7 +1382,7 @@ func _open_dex() -> void:
 		grid.add_child(_dex_card(k))
 	_dex_box.add_child(_lbl("Pokéballs", 22, TEXT, f_disp_b))
 	var bg := GridContainer.new()
-	bg.columns = 3
+	bg.columns = 2 if _phone else 3
 	bg.add_theme_constant_override("h_separation", 12)
 	bg.add_theme_constant_override("v_separation", 8)
 	_dex_box.add_child(bg)
@@ -945,7 +1397,7 @@ func _open_dex() -> void:
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tv.add_child(_lbl(b.name, 13, TEXT, f_bold))
 		var nl := _lbl(b.note, 11.5, MUTED, f_light, true)
-		nl.custom_minimum_size.x = 260
+		nl.custom_minimum_size.x = 0 if _phone else 260
 		tv.add_child(nl)
 		row.add_child(tv)
 		p.add_child(row)
@@ -957,6 +1409,8 @@ func _open_dex() -> void:
 			var mul: float = Data.TYPE_EFFECT[ty][ball]
 			lines.append("%s attacks do %s damage to %ss." % [ty, ("double" if mul == 2 else ("half" if mul == .5 else "%s×" % _num(mul))), Data.BALLS[ball].name])
 	_dex_box.add_child(_lbl("\n".join(lines), 13.5, MUTED, f_light, true))
+	if _phone:
+		_pass_through(_dex)
 	_dex.visible = true
 
 
@@ -985,7 +1439,7 @@ func _dex_card(k: String) -> Control:
 	if locked:
 		v.add_child(_lbl(_lock_text(k), 12.5, GOLD, f_light, true))
 	var bl := _lbl(d.blurb, 12.5, MUTED, f_light, true)
-	bl.custom_minimum_size.x = 480
+	bl.custom_minimum_size.x = 0 if _phone else 480
 	v.add_child(bl)
 	var names := Data.path_names(k)
 	var cols := _hbox(10)
@@ -1000,7 +1454,7 @@ func _dex_card(k: String) -> Control:
 		col.add_child(_caps(names[pi]))
 		for u in list:
 			var ul := _lbl("%s (₽%d): %s" % [u.name.replace("Evolve: ", ""), u.cost, u.desc], 11.5, TEXT if not locked else MUTED, f_light, true)
-			ul.custom_minimum_size.x = 230
+			ul.custom_minimum_size.x = 0 if _phone else 230
 			col.add_child(ul)
 		cols.add_child(col)
 	v.add_child(cols)
@@ -1011,13 +1465,23 @@ func _dex_card(k: String) -> Control:
 func _build_settings() -> void:
 	_settings = _overlay(self, .8)
 	var cc := CenterContainer.new()
-	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_settings.add_child(cc)
+	if _phone:
+		# a short screen: let the card scroll
+		var ssc := ScrollContainer.new()
+		ssc.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ssc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		_settings.add_child(ssc)
+		cc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		ssc.add_child(cc)
+	else:
+		cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_settings.add_child(cc)
 	var card := PanelContainer.new()
-	card.add_theme_stylebox_override("panel", _sb(PANEL, 16, 24, 2, LINE))
+	card.add_theme_stylebox_override("panel", _sb(PANEL, 16, 16 if _phone else 24, 2, LINE))
 	cc.add_child(card)
-	var v := _vbox(16)
-	v.custom_minimum_size.x = 380
+	var v := _vbox(10 if _phone else 16)
+	v.custom_minimum_size.x = 420 if _phone else 380
 	card.add_child(v)
 	v.add_child(_lbl("Settings", 26, TEXT, f_disp_b))
 
@@ -1070,6 +1534,19 @@ func _build_settings() -> void:
 	ua.toggled.connect(func(on): _unlock_all = on; _save(); _render_shop())
 	v.add_child(ua)
 
+	var lay := _vbox(6)
+	lay.add_child(_caps("Screen layout", MUTED, 11))
+	var lrow := _hbox(6)
+	lay.add_child(lrow)
+	for lk in ["auto", "desktop", "phone"]:
+		var on: bool = _layout == lk
+		var lb := _btn({"auto": "Automatic", "desktop": "Computer", "phone": "Phone"}[lk], GOLD if on else PANEL2, Color("#2b2200") if on else TEXT, GOLD if on else Color("#3a4280"), 9, 7)
+		lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lb.pressed.connect(_set_layout.bind(lk))
+		lrow.add_child(lb)
+	lay.add_child(_lbl("The phone layout has bigger text and buttons, a Party beside the map and drawers for details. Automatic picks it on small touch screens.", 12, MUTED, f_light, true))
+	v.add_child(lay)
+
 	var reset := _btn("Reset best waves and saved game", Color(0, 0, 0, 0), Color("#ffb3b3"), Color(0, 0, 0, 0), 10, 10)
 	reset.add_theme_stylebox_override("normal", _sb(Color(0, 0, 0, 0), 10, 10, 2, LINE))
 	reset.add_theme_stylebox_override("hover", _sb(Color(0, 0, 0, 0), 10, 10, 2, BAD))
@@ -1088,25 +1565,42 @@ func _build_settings() -> void:
 	v.add_child(done)
 
 
+## Switching layouts rebuilds the screen. The run is saved between waves, so
+## mid-wave the player picks up from the start of the current wave.
+func _set_layout(lk: String) -> void:
+	if lk == _layout:
+		return
+	_layout = lk
+	_save()
+	_reopen_settings = true
+	get_tree().reload_current_scene()
+
+
 # ---------- pause menu ----------
 func _build_pause_menu() -> void:
-	_pause_menu = Control.new()
-	_pause_menu.position = Vector2(12, 68)
-	_pause_menu.size = Vector2(966, 606)
-	_pause_menu.mouse_filter = Control.MOUSE_FILTER_STOP
-	_pause_menu.visible = false
-	add_child(_pause_menu)
+	if _phone:
+		_pause_menu = _overlay(self, .75)
+	else:
+		_pause_menu = Control.new()
+		_pause_menu.position = Vector2(12, 68)
+		_pause_menu.size = Vector2(966, 606)
+		_pause_menu.mouse_filter = Control.MOUSE_FILTER_STOP
+		_pause_menu.visible = false
+		add_child(_pause_menu)
 	var cc := CenterContainer.new()
 	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_pause_menu.add_child(cc)
 	var card := PanelContainer.new()
-	card.add_theme_stylebox_override("panel", _sb(Color(22 / 255.0, 25 / 255.0, 54 / 255.0, .97), 16, 22, 2, LINE))
+	card.add_theme_stylebox_override("panel", _sb(Color(22 / 255.0, 25 / 255.0, 54 / 255.0, .97), 16, 16 if _phone else 22, 2, LINE))
 	cc.add_child(card)
-	var v := _vbox(10)
+	var v := _vbox(8 if _phone else 10)
 	card.add_child(v)
-	var t := _lbl("Paused", 32, TEXT, f_disp_b)
+	var t := _lbl("Paused", 26 if _phone else 32, TEXT, f_disp_b)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(t)
+	if _phone:
+		_build_phone_pause(v)
+		return
 	var resume := _menu_btn("Resume", true)
 	resume.pressed.connect(_toggle_pause)
 	v.add_child(resume)
@@ -1125,6 +1619,51 @@ func _build_pause_menu() -> void:
 	var home := _menu_btn("Main menu")
 	home.pressed.connect(_show_title)
 	v.add_child(home)
+
+
+## The phone pause menu: two columns of buttons, plus the sound and auto-start
+## switches that live in the header and side panel on a computer.
+func _build_phone_pause(v: VBoxContainer) -> void:
+	_mapname_lbl = _caps("", MUTED, 11)
+	_mapname_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(_mapname_lbl)
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 8)
+	g.add_theme_constant_override("v_separation", 8)
+	v.add_child(g)
+	var resume := _menu_btn("Resume", true)
+	resume.pressed.connect(_toggle_pause)
+	g.add_child(resume)
+	var restart := _menu_btn("Restart this map")
+	_two_tap(restart, "Tap again to restart", func(): _start_map(game.map, game.diff))
+	g.add_child(restart)
+	var maps := _menu_btn("Change map")
+	maps.pressed.connect(_open_menu)
+	g.add_child(maps)
+	var dex := _menu_btn("Pokédex")
+	dex.pressed.connect(_open_dex)
+	g.add_child(dex)
+	var settings := _menu_btn("Settings")
+	settings.pressed.connect(func(): _settings.visible = true)
+	g.add_child(settings)
+	var home := _menu_btn("Main menu")
+	home.pressed.connect(_show_title)
+	g.add_child(home)
+	var row := _hbox(8)
+	v.add_child(row)
+	_mute_btn = _btn("Sound off" if sfx.muted else "Sound on", INSET, TEXT, Color("#1c2045"), 10, 8)
+	_mute_btn.custom_minimum_size = Vector2(120, 40)
+	_mute_btn.pressed.connect(_toggle_mute)
+	row.add_child(_mute_btn)
+	_auto_chk = CheckBox.new()
+	_auto_chk.text = "Start waves automatically"
+	_auto_chk.focus_mode = Control.FOCUS_NONE
+	_auto_chk.add_theme_font_size_override("font_size", _fs(13))
+	for st in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		_auto_chk.add_theme_color_override(st, TEXT)
+	_auto_chk.toggled.connect(func(on): game.auto = on; game.auto_timer = .5)
+	row.add_child(_auto_chk)
 
 
 func _open_pause_menu() -> void:
@@ -1150,6 +1689,12 @@ func _open_menu() -> void:
 	var dhl := _lbl(dh[_diff], 12.5, MUTED, f_light)
 	dhl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_diff_box.add_child(dhl)
+	var pw := 233.0
+	_maps_grid.columns = 4
+	if _phone:
+		var vw := get_viewport_rect().size.x - 32
+		_maps_grid.columns = 4 if vw >= 760 else 3
+		pw = (vw - (_maps_grid.columns - 1) * 12) / _maps_grid.columns - 4
 	for m in Data.MAPS:
 		var path := MapArt.build_path(m.path)
 		var o := MapArt.gen_obstacles(m, path)
@@ -1160,7 +1705,7 @@ func _open_menu() -> void:
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var cv := _vbox(0)
 		card.add_child(cv)
-		var prev := MapPreview.new(cmds, 233)
+		var prev := MapPreview.new(cmds, pw)
 		cv.add_child(prev)
 		var mc := MarginContainer.new()
 		for side in ["left", "right"]:
@@ -1186,8 +1731,16 @@ func _open_menu() -> void:
 		rm.add_theme_constant_override("margin_top", 6)
 		rm.add_child(row)
 		info.add_child(rm)
+		if _phone:
+			# the card is only as wide as its preview; trim text that would widen it
+			for l in [info.get_child(0), info.get_child(1), row.get_child(row.get_child_count() - 1)]:
+				l.clip_text = true
+				l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+				l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		card.pressed.connect(_start_map.bind(m))
 		_maps_grid.add_child(card)
+	if _phone:
+		_pass_through(_menu)
 	_menu.visible = true
 
 
@@ -1252,10 +1805,21 @@ func _end_primary_pressed() -> void:
 # ---------- toast / hud ----------
 func _show_toast(msg: String) -> void:
 	_toast_lbl.text = msg
+	_toast_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_toast_lbl.custom_minimum_size.x = 0
 	_toast.reset_size()
 	await get_tree().process_frame
 	_toast.reset_size()
-	_toast.position = Vector2((Data.W - _toast.size.x) / 2, 12)
+	if _phone:
+		# over the top of the field, wrapping long messages to fit it
+		var fw := Data.W * stage.scale.x - 24
+		if _toast.size.x > fw:
+			_toast_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_toast_lbl.custom_minimum_size.x = fw - 28
+			_toast.reset_size()
+		_toast.position = stage.position + Vector2((Data.W * stage.scale.x - _toast.size.x) / 2, 8)
+	else:
+		_toast.position = Vector2((Data.W - _toast.size.x) / 2, 12)
 	if _toast_tween:
 		_toast_tween.kill()
 	_toast_tween = create_tween()
@@ -1289,10 +1853,10 @@ func _update_hud(force := false) -> void:
 		_next_key = nk
 		_render_next()
 	if game.running:
-		_play_btn.text = "Wave %d in progress" % game.wave
+		_play_btn.text = ("Wave %d…" if _phone else "Wave %d in progress") % game.wave
 		_play_btn.disabled = true
 	elif game.wave == 40 and not game.freeplay:
-		_play_btn.text = "Map cleared"
+		_play_btn.text = "Cleared" if _phone else "Map cleared"
 		_play_btn.disabled = true
 	else:
 		_play_btn.text = "Start wave %d" % (game.wave + 1)
@@ -1302,7 +1866,7 @@ func _update_hud(force := false) -> void:
 		_restyle_btn(_speed_btn, GOLD, Color("#2b2200"), GOLD)
 	else:
 		_restyle_btn(_speed_btn, PANEL2, TEXT, Color("#3a4280"))
-	_pause_btn.text = "Resume" if game.paused else "Pause"
+	_pause_btn.text = ("Menu" if _phone else "Pause") if not game.paused else "Resume"
 	if game.paused:
 		_restyle_btn(_pause_btn, GOLD, Color("#2b2200"), GOLD)
 	else:
@@ -1312,14 +1876,16 @@ func _update_hud(force := false) -> void:
 		var poor: bool = game.money < Data.TOWERS[k].cost
 		b.disabled = poor or game.map == null or not _unlocked(k)
 		b.modulate.a = .45 if b.disabled else 1.0
+		if _phone:
+			b.disabled = game.map == null  # still opens the details drawer
 	_update_clear_btn()
 	for id in _item_buttons:
 		var ib: Button = _item_buttons[id]
 		var cost := game.item_cost(id)
-		ib.text = "%s ₽%d" % [Data.ITEMS[id].short, cost]
+		ib.text = ("%s\n₽%d" if _phone else "%s ₽%d") % [Data.ITEMS[id].short, cost]
 		ib.tooltip_text = "%s: %s" % [Data.ITEMS[id].name, Data.ITEMS[id].desc]
 		if id == "candy" and game.candy:
-			ib.text = "Candy ready"
+			ib.text = "Candy\nready" if _phone else "Candy ready"
 		ib.disabled = game.map == null or game.money < cost
 	for w in _cost_widgets:
 		var card: CardButton = w[0]
@@ -1347,7 +1913,10 @@ func _render_next() -> void:
 		_next_box.add_child(_caps("All 40 waves cleared", GOLD, 10))
 		return
 	var n := game.wave if game.running else game.wave + 1
-	var cap := _caps(("Wave %d:" if game.running else "Next, wave %d:") % n, MUTED, 10)
+	var cap_text := ("Wave %d:" if game.running else "Next, wave %d:") % n
+	if _phone:
+		cap_text = "Now:" if game.running else "Next:"
+	var cap := _caps(cap_text, MUTED, 10)
 	cap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_next_box.add_child(cap)
 	var counts := {}
@@ -1366,6 +1935,17 @@ func _render_next() -> void:
 		cl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		cell.add_child(cl)
 		_next_box.add_child(cell)
+	if _phone:
+		_render_next_fit.call_deferred()
+
+
+## The phone rail has one line for the next wave: drop the counts that don't fit.
+func _render_next_fit() -> void:
+	var w := _next_box.size.x
+	var x := 0.0
+	for c in _next_box.get_children():
+		x += c.get_combined_minimum_size().x + 4
+		c.visible = x <= w + 4
 
 
 func _use_item(id: String) -> void:
@@ -1410,6 +1990,28 @@ func _render_shop() -> void:
 		v.set_anchors_preset(Control.PRESET_FULL_RECT)
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if _phone:
+			# just the Pokémon and its price; tapping it opens the details drawer
+			sel = sel or (_peek_kind == k and _peek.visible)
+			b.add_theme_stylebox_override("normal", _sb(PANEL2, 9, 0, 2, GOLD if sel else Color(0, 0, 0, 0)))
+			b.add_theme_stylebox_override("disabled", _sb(PANEL2, 9, 0, 2, GOLD if sel else Color(0, 0, 0, 0)))
+			b.custom_minimum_size = Vector2(0, 30)
+			b.tooltip_text = ""
+			var pi := MonIcon.new(Data.sprite_for(k, 0), 28, .55)
+			pi.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			pi.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			if locked:
+				pi.modulate = Color(0, 0, 0, .55)
+			v.add_child(pi)
+			var pl := _lbl("₽%d" % d.cost if not locked else "Locked", 11, GOLD if not locked else MUTED, f_bold)
+			pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			v.add_child(pl)
+			b.add_child(v)
+			b.pressed.connect(_peek_at.bind(k))
+			b.button_down.connect(_begin_drag.bind(k))
+			_shop_grid.add_child(b)
+			_shop_buttons[k] = b
+			continue
 		var icon := MonIcon.new(Data.sprite_for(k, 0), 26, .5)
 		icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		if locked:
@@ -1428,6 +2030,8 @@ func _render_shop() -> void:
 		b.button_down.connect(_begin_drag.bind(k))
 		_shop_grid.add_child(b)
 		_shop_buttons[k] = b
+	if _phone:
+		_fit_party.call_deferred()
 	_update_hud(true)
 
 
@@ -1438,6 +2042,7 @@ func _select_kind(k: String) -> void:
 		_show_toast(_lock_text(k).trim_prefix("Locked. "))
 		return
 	stage.placing = "" if stage.placing == k else k
+	_peek_kind = ""
 	stage.selected = null
 	stage.ghost = null
 	stage.ghost_touch = false
@@ -1453,36 +2058,46 @@ func _begin_drag(k: String) -> void:
 		return
 	_drag_kind = k
 	_drag_on_field = false
-	_drag_start = get_global_mouse_position()
+	_drag_start = _press_pos
 
 
+## Positions come from the events, not the OS pointer, which a touch screen
+## doesn't always move.
 func _input(e: InputEvent) -> void:
+	if e is InputEventMouseButton and e.pressed:
+		_press_pos = e.position
 	if _drag_kind == "":
 		return
 	if e is InputEventMouseMotion:
-		var p := stage.get_local_mouse_position()
+		var p: Vector2 = stage.get_global_transform().affine_inverse() * e.position
 		var inside := Rect2(Vector2.ZERO, stage.size).has_point(p)
-		if not _drag_on_field and inside and get_global_mouse_position().distance_to(_drag_start) > 16:
+		if not _drag_on_field and inside and e.position.distance_to(_drag_start) > 16:
 			_drag_on_field = true
 			stage.placing = _drag_kind
 			stage.selected = null
 			stage.ghost_touch = false
+			_peek_kind = ""
 			_render_info()
 		if _drag_on_field:
 			# lift the preview above a finger so it stays visible
-			var lift := Vector2(0, -44) if e.device == InputEvent.DEVICE_ID_EMULATION else Vector2.ZERO
+			var lift := Vector2(0, -44 / stage.scale.y) if e.device == InputEvent.DEVICE_ID_EMULATION else Vector2.ZERO
 			stage.ghost = p + lift if inside else null
 	elif e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not e.pressed:
 		_drag_kind = ""
 		if not _drag_on_field:
 			return
 		_drag_on_field = false
-		if stage.ghost != null:
-			_try_place(stage.ghost.x, stage.ghost.y, false)
-		else:
-			stage.placing = ""
-			_render_info()
-		_render_shop()
+		# after the release reaches the Party tile, since this rebuilds the Party
+		_drop.call_deferred()
+
+
+func _drop() -> void:
+	if stage.ghost != null:
+		_try_place(stage.ghost.x, stage.ghost.y, false)
+	else:
+		stage.placing = ""
+		_render_info()
+	_render_shop()
 
 
 func _try_place(x: float, y: float, keep: bool) -> void:
@@ -1496,22 +2111,30 @@ func _try_place(x: float, y: float, keep: bool) -> void:
 		return
 	var tw := game.place_tower(k, x, y)
 	_save_run()
+	_buzz()
 	stage.ghost_touch = false
 	if not keep or game.money < d.cost:
 		stage.placing = ""
 		stage.ghost = null
-		stage.selected = tw
+		# on a phone the upgrade drawer would cover the rail; tap the Pokémon for it
+		stage.selected = null if _phone else tw
 		_render_shop()
+		if _phone:
+			_show_toast("%s is ready! Tap it to see its upgrades." % d.name)
 	_render_info()
 
 
 func _on_tower_clicked(tw) -> void:
 	stage.selected = tw
 	stage.sel_obs = null
+	if _peek_kind != "":
+		_peek_kind = ""
+		_render_shop()
 	_render_info()
 
 
 func _on_obstacle_clicked(o: Dictionary) -> void:
+	_peek_kind = ""
 	stage.selected = null
 	stage.sel_obs = null if stage.sel_obs == o else o
 	_render_info()
@@ -1541,6 +2164,9 @@ func _render_info() -> void:
 
 
 func _render_side() -> void:
+	if _phone:
+		_render_peek()
+		return
 	_clear(_info_box)
 	if stage.placing != "":
 		var k := stage.placing
@@ -1591,10 +2217,19 @@ func _render_obstacle() -> void:
 	if o == null:
 		return
 	var od: Dictionary = Data.OBSTACLES[o.kind]
-	var right: bool = o.x < Data.W / 2
-	_obs_card.position = Vector2(minf(o.x + o.r + 18, Data.W - 300) if right else maxf(o.x - o.r - 18 - 296, 10), clampf(o.y - 90, 10, Data.H - 330))
-	_obs_card.size = Vector2.ZERO
-	_obs_box.add_child(_lbl(od.name, 18, TEXT, f_disp))
+	if _phone:
+		_obs_card.visible = false
+		var head := _hbox(10)
+		var nl := _lbl(od.name, 18, TEXT, f_disp)
+		nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(nl)
+		head.add_child(_close_btn(func(): stage.sel_obs = null; _render_info()))
+		_obs_box.add_child(head)
+	else:
+		var right: bool = o.x < Data.W / 2
+		_obs_card.position = Vector2(minf(o.x + o.r + 18, Data.W - 300) if right else maxf(o.x - o.r - 18 - 296, 10), clampf(o.y - 90, 10, Data.H - 330))
+		_obs_card.size = Vector2.ZERO
+		_obs_box.add_child(_lbl(od.name, 18, TEXT, f_disp))
 	_obs_box.add_child(_lbl("It's taking up a spot. Clear it away to make room for a Pokémon.", 12.5, MUTED, f_light, true))
 	if od.has("note"):
 		_obs_box.add_child(_lbl(od.note, 12.5, MUTED, f_light, true))
@@ -1619,6 +2254,8 @@ func _render_obstacle() -> void:
 		var names: Array = od.by.keys().map(func(k): return Data.TOWERS[k].name)
 		_obs_box.add_child(_lbl("Place %s anywhere on the map first." % " or ".join(names), 12.5, MUTED, f_light, true))
 	_update_clear_btn()
+	if _phone:
+		_place_drawer(_obs_card, o.x > Data.W - 140)
 
 
 func _update_clear_btn() -> void:
@@ -1680,8 +2317,11 @@ func _render_sheet() -> void:
 	var sp := Data.sprite_for(tw.kind, tw.a)
 	var s: Dictionary = tw.s
 	var names := Data.path_names(tw.kind)
-	_sheet.position = Vector2(Data.W - 10 - 340 if tw.x < Data.W / 2 else 10.0, 10)
-	_sheet.visible = true
+	if _phone:
+		_place_drawer(_sheet, tw.x > Data.W - 140)
+	else:
+		_sheet.position = Vector2(Data.W - 10 - 340 if tw.x < Data.W / 2 else 10.0, 10)
+		_sheet.visible = true
 
 	var head := _hbox(10)
 	head.add_child(MonIcon.new(sp, 56, .9, INSET))
@@ -1700,13 +2340,7 @@ func _render_sheet() -> void:
 		var cp: String = s.get("copy", "")
 		hv.add_child(_lbl("Transformed into %s" % Art.SPRITE_INFO[Data.sprite_for(cp, s.copyTier)].name if cp != "" else "Place it next to a Pokémon to copy it", 12, GOLD, f_light, true))
 	head.add_child(hv)
-	var x := _btn("×", PANEL2, TEXT, Color("#3a4280"), 8, 0)
-	x.custom_minimum_size = Vector2(32, 32)
-	x.add_theme_font_size_override("font_size", 20)
-	x.tooltip_text = "Close"
-	x.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	x.pressed.connect(func(): stage.selected = null; _render_info())
-	head.add_child(x)
+	head.add_child(_close_btn(func(): stage.selected = null; _render_info()))
 	_sheet_box.add_child(head)
 
 	var stats := _hbox(6)
@@ -1776,6 +2410,9 @@ func _render_sheet() -> void:
 			var dl := _lbl(u.desc, 11.5, MUTED, f_light, true)
 			dl.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			cv.add_child(dl)
+			var delta := _upgrade_delta(tw, pkey) if _phone else ""
+			if delta != "":
+				cv.add_child(_lbl(delta, 11.5, GREEN, f_bold, true))
 			var uc := game.upgrade_cost(u.cost)
 			cost_lbl = _lbl("₽%d%s" % [uc, "  (Rare Candy)" if uc != u.cost else ""], 14, GOLD, f_bold)
 		cv.add_child(cost_lbl)
@@ -1784,7 +2421,7 @@ func _render_sheet() -> void:
 			card.modulate.a = .7
 			card_n.border_color = Color(LINE, .7)
 		else:
-			card.pressed.connect(func(): game.upgrade(tw, pkey))
+			card.pressed.connect(func(): game.upgrade(tw, pkey); _buzz())
 			card.mouse_entered.connect(_preview_upgrade.bind(tw, pkey))
 			card.mouse_exited.connect(_preview_upgrade.bind(tw, ""))
 			_cost_widgets.append([card, game.upgrade_cost(list[tier].cost), cost_lbl])
@@ -1863,11 +2500,13 @@ func _branch_card(tw, br: String) -> Control:
 	h.add_child(cv)
 	cv.add_child(_lbl(u.name, 12, TEXT, f_bold, true))
 	cv.add_child(_lbl(Data.TOWERS[br].role, 10.5, MUTED, f_light, true))
+	if _phone:
+		cv.add_child(_lbl(u.desc, 10.5, MUTED, f_light, true))
 	var uc := game.upgrade_cost(u.cost)
 	var cost_lbl := _lbl("₽%d" % uc, 12, GOLD, f_bold)
 	cv.add_child(cost_lbl)
 	card.tooltip_text = u.desc
-	card.pressed.connect(func(): game.upgrade(tw, "a", br))
+	card.pressed.connect(func(): game.upgrade(tw, "a", br); _buzz())
 	card.mouse_entered.connect(_preview_upgrade.bind(tw, "a", br))
 	card.mouse_exited.connect(_preview_upgrade.bind(tw, ""))
 	_cost_widgets.append([card, uc, cost_lbl])
@@ -1897,6 +2536,12 @@ func _preview_upgrade(tw, p: String, branch := "") -> void:
 
 
 # ---------- controls ----------
+## A short tap of vibration on phones when something is placed or bought.
+func _buzz() -> void:
+	if _phone:
+		Input.vibrate_handheld(15)
+
+
 func _cycle_speed() -> void:
 	game.speed = 2 if game.speed == 1 else (3 if game.speed == 2 else 1)
 	_update_hud(true)
@@ -1951,7 +2596,8 @@ func _back() -> void:
 		pass
 	elif _menu.visible:
 		_menu_back()
-	elif stage.placing != "" or stage.selected or stage.sel_obs != null:
+	elif stage.placing != "" or stage.selected or stage.sel_obs != null or _peek_kind != "":
+		_peek_kind = ""
 		stage.placing = ""
 		stage.ghost = null
 		stage.selected = null

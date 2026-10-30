@@ -11,7 +11,18 @@ There are two versions. The **Godot version** (in `godot/`) is the main one: it 
 - Godot version: https://williamschertzer.github.io/pokepop/
 - Classic web version: https://williamschertzer.github.io/pokepop/classic/
 
-Both update by themselves every time something is merged into `main`. The classic version can be installed as an app and works offline after the first visit (on Android/Chrome/Edge use **Install app**; on iPhone/iPad open it in Safari, tap **Share**, then **Add to Home Screen**).
+Both update by themselves every time something is merged into `main`. Both can be installed as an app and work offline after the first visit: on Android/Chrome/Edge use **Install app**; on iPhone/iPad open the page in Safari, tap **Share**, then **Add to Home Screen**.
+
+### On a phone
+
+The Godot version has its own phone layout, which turns on by itself on small touch screens. Hold the phone sideways. The map takes the full height of the screen, with your HP, money, Party and wave controls in a column beside it:
+
+- **Drag** a Pokémon from the Party onto the map. The preview floats just above your finger so you can see where it will land; let go off the map to cancel.
+- **Tap** a Pokémon in the Party to open a drawer with what it does, its stats and every upgrade, then **Place** it and tap the map twice (once to preview the spot, once to place).
+- **Tap** a Pokémon on the map to open its upgrades. Each upgrade shows what it changes ("Damage 1 › 2"), since there's no hovering on a phone.
+- **Menu** pauses the game and holds the sound and auto-start switches.
+
+Settings → **Screen layout** switches between Automatic, Computer and Phone.
 
 ### Download for Mac, Windows, Linux or Android
 

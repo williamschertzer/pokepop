@@ -17,6 +17,7 @@ var ghost = null  # Vector2 or null
 var ghost_touch := false
 var selected = null  # Game.Tower or null
 var sel_obs = null  # obstacle Dictionary or null
+var hit_pad := 0.0  # extra reach for fingers when the field is drawn small (phones)
 
 var _bg_layer: Control
 var _fx_layer: Control
@@ -88,7 +89,7 @@ func _gui_input(event: InputEvent) -> void:
 		var p: Vector2 = event.position
 		if placing != "":
 			if touch:
-				if ghost != null and ghost_touch and ghost.distance_to(p) < 30:
+				if ghost != null and ghost_touch and ghost.distance_to(p) < 30 + hit_pad * 1.5:
 					place_requested.emit(ghost.x, ghost.y, false)
 				else:
 					ghost = p
@@ -101,11 +102,11 @@ func _gui_input(event: InputEvent) -> void:
 		var hit = null
 		for i in range(game.towers.size() - 1, -1, -1):
 			var tw = game.towers[i]
-			if Vector2(tw.x, tw.y).distance_to(p) < 22:
+			if Vector2(tw.x, tw.y).distance_to(p) < 22 + (hit_pad if touch else 0.0):
 				hit = tw
 				break
 		if hit == null:
-			var o = game.obstacle_at(p.x, p.y, 4)
+			var o = game.obstacle_at(p.x, p.y, 4 + (hit_pad if touch else 0.0))
 			if o != null and Data.OBSTACLES.has(o.kind):
 				obstacle_clicked.emit(o)
 				accept_event()
