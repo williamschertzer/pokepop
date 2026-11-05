@@ -788,8 +788,17 @@ function makeWave(n){
   for(const[type,count,gap]of waveGroups(n)){for(let i=0;i<count;i++)ev.push({t:start+i*gap,type});start+=count*gap*.55;}
   return ev.sort((a,b)=>a.t-b.t);
 }
-const masterHp=n=>Math.round(260*(1+Math.max(0,n-25)*.08));
-const rocketHp=n=>Math.round(1500*(1+Math.max(0,n-40)*.12));
+// Freeplay ramps up every wave: balls roll 2% faster (up to +80%), balls that
+// take several hits get 10% more health and bosses 6% more.
+const fpHp=(n,boss=true)=>1+Math.max(0,n-40)*(boss?.06:.1);
+const fpSpeed=n=>1+Math.min(.8,Math.max(0,(n-40)*.02));
+const masterHp=n=>Math.round(260*(1+Math.max(0,n-25)*.08)*fpHp(n));
+const rocketHp=n=>Math.round(1500*(1+Math.max(0,n-40)*.12)*fpHp(n));
+// How much of each pop's money you keep: less from wave 31, much less in freeplay.
+const popCash=n=>n<=30?1:n<=40?.7:n<=50?.35:n<=60?.2:.1;
+const waveBonus=n=>n<=40?120+n*8:60;
+const payCash=n=>n<=40?1:popCash(n);
+function earn(n){G.cashFrac=(G.cashFrac||0)+n*popCash(G.wave);const w=Math.floor(G.cashFrac);G.money+=w;G.cashFrac-=w;}
 
 /* ---------- state ---------- */
 const G={coins:[],marks:[],alarm:0,endPt:null,startPt:null,map:null,path:null,bg:null,fog:null,obs:[],deco:[],money:0,lives:0,wave:0,running:false,q:[],qt:0,balls:[],towers:[],proj:[],fx:[],parts:[],
@@ -805,7 +814,7 @@ function setupMap(map){
 }
 function newGame(map){
   setupMap(map);
-  Object.assign(G,{coins:[],marks:[],alarm:0,money:map.cash,lives:map.lives,wave:0,running:false,q:[],qt:0,balls:[],towers:[],proj:[],fx:[],parts:[],placing:null,ghost:null,sel:null,over:false,won:false,freeplay:false,paused:false,autoTimer:0});
+  Object.assign(G,{coins:[],marks:[],alarm:0,cashFrac:0,ramp:1,money:map.cash,lives:map.lives,wave:0,running:false,q:[],qt:0,balls:[],towers:[],proj:[],fx:[],parts:[],placing:null,ghost:null,sel:null,over:false,won:false,freeplay:false,paused:false,autoTimer:0});
   $('mapname').textContent=`${map.name} · ${map.diff}`;
   $('menu').hidden=true;$('end').hidden=true;
   renderShop();renderInfo();updateHud(true);
@@ -815,7 +824,7 @@ function newGame(map){
 /* ---------- balls ---------- */
 function spawnBall(type,d){
   const def=BALLS[type];
-  const hp=type==='rocket'?rocketHp(G.wave):type==='master'?masterHp(G.wave):def.hp*(G.wave>40&&type==='heavy'?2:1);
+  const hp=type==='rocket'?rocketHp(G.wave):type==='master'?masterHp(G.wave):def.hp*(G.wave>40&&type==='heavy'?2:1)*(def.hp>1?fpHp(G.wave,false):1);
   const b={id:G.nextId++,type,d:Math.max(0,d),hp,maxHp:hp,sleep:0,sleepCD:0,burn:null,seed:null,wet:0,revealed:false,slow:1,wob:Math.random()*TAU,x:0,y:0,dead:false};
   const p=posAt(G.path,b.d);b.x=p.x;b.y=p.y;G.balls.push(b);return b;
 }
@@ -827,7 +836,7 @@ function damage(b,amt,src){
 }
 function popBall(b,src,over){
   b.dead=true;
-  G.money+=1+(src&&src.s.dream?1:0)+(src&&src.s.thief?3:0);
+  earn(1+(src&&src.s.dream?1:0)+(src&&src.s.thief?3:0));
   if(src)src.pops++;
   const def=BALLS[b.type];
   for(let i=0;i<(def.boss?18:6);i++){const a=Math.random()*TAU,v=40+Math.random()*90;G.parts.push({x:b.x,y:b.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:.35,max:.35,col:i%2?'#fff':def.top,size:def.boss?3:2});}
@@ -1013,12 +1022,12 @@ function update(dt){
     if(b.dead)continue;
     const def=BALLS[b.type];
     b.sleepCD-=dt;
-    if(b.sleep>0)b.sleep-=dt;else b.d+=60*def.spd*b.slow*dt;
+    if(b.sleep>0)b.sleep-=dt;else b.d+=60*def.spd*b.slow*dt*(G.ramp||1);
     b.wob+=dt*(4+def.spd*2);
     const p=posAt(G.path,b.d);b.x=p.x;b.y=p.y;
     if(b.burn){b.burn.timer-=dt;if(b.burn.timer<=0){b.burn.timer=b.burn.every;b.burn.left--;damage(b,b.burn.dmg,b.burn.src);if(b.burn.left<=0)b.burn=null;}}
     if(b.wet>0)b.wet-=dt;
-    if(b.seed&&!b.dead){b.seed.timer-=dt;if(b.seed.timer<=0){const sd=b.seed;sd.timer=1;sd.left--;if(sd.left<=0)b.seed=null;G.money+=1;damage(b,1,sd.src);}}
+    if(b.seed&&!b.dead){b.seed.timer-=dt;if(b.seed.timer<=0){const sd=b.seed;sd.timer=1;sd.left--;if(sd.left<=0)b.seed=null;earn(1);damage(b,1,sd.src);}}
     if(!b.dead&&b.d>=G.path.total){b.dead=true;G.lives-=RBE[b.type];G.alarm=.8;shake=Math.max(shake,4);G.fx.push({kind:'leak',life:.4,max:.4});blip(110,.2,'square',.04);}
   }
   for(const t of G.towers)updateTower(t,dt);
@@ -1035,7 +1044,7 @@ function update(dt){
     p.life-=dt;if(p.ph!==undefined)p.ph+=dt*10;
     if(dist<=step+6||p.life<=0){p.x=p.tx;p.y=p.ty;p.done=true;
       if(p.kind==='water'){const s=p.src.s;if(!p.tgt.dead){damage(p.tgt,s.dmg,p.src);pushBack(p.tgt,s.push);if(s.bubble)p.tgt.wet=1.5;}for(let i=0;i<6;i++){const a=Math.random()*TAU;G.parts.push({x:p.x,y:p.y,vx:Math.cos(a)*70,vy:Math.sin(a)*70,life:.25,max:.25,col:i%2?'#bfe6ff':'#4aa3f0',size:2.4});}}
-      else if(p.kind==='coin'){if(!p.tgt.dead){damage(p.tgt,4,p.src);G.money+=1;}for(let i=0;i<4;i++){const a=Math.random()*TAU;G.parts.push({x:p.x,y:p.y,vx:Math.cos(a)*60,vy:Math.sin(a)*60,life:.3,max:.3,col:'#ffd23f',size:2.4});}}
+      else if(p.kind==='coin'){if(!p.tgt.dead){damage(p.tgt,4,p.src);earn(1);}for(let i=0;i<4;i++){const a=Math.random()*TAU;G.parts.push({x:p.x,y:p.y,vx:Math.cos(a)*60,vy:Math.sin(a)*60,life:.3,max:.3,col:'#ffd23f',size:2.4});}}
       else explode(p);
     }else{p.x+=dx/dist*step;p.y+=dy/dist*step;}
   }
@@ -1055,7 +1064,7 @@ function update(dt){
 function startWave(){
   if(G.running||G.over||!G.map)return;
   if(G.wave===40&&!G.freeplay)return;
-  G.wave++;G.q=makeWave(G.wave);G.qt=0;G.running=true;
+  G.wave++;G.ramp=fpSpeed(G.wave);G.q=makeWave(G.wave);G.qt=0;G.running=true;
   const g=waveGroups(G.wave).map(([t,c])=>`${c} ${BALLS[t].name}${c>1?'s':''}`).join(', ');
   toast(`Wave ${G.wave}: ${g}`);
   if(G.wave===25)toast('Prepare for trouble! A Master Ball is coming.');
@@ -1063,8 +1072,8 @@ function startWave(){
   updateHud(true);
 }
 function waveDone(){
-  G.running=false;const bonus=150+G.wave*10;G.money+=bonus;G.autoTimer=1;
-  let pay=0;for(const t of G.towers)if(t.s.pay){pay+=t.s.pay;payDay(t,t.s.pay);}G.money+=pay;
+  G.running=false;const bonus=waveBonus(G.wave);G.money+=bonus;G.autoTimer=1;
+  let pay=0;for(const t of G.towers)if(t.s.pay){const a=Math.round(t.s.pay*payCash(G.wave));pay+=a;payDay(t,a);}G.money+=pay;
   const k=G.map.id;if((best[k]||0)<G.wave){best[k]=G.wave;store.set('pokepop-best',best);}
   if(G.wave===40&&!G.freeplay){G.won=true;showEnd(true);}
   else toast(`Wave ${G.wave} cleared. +₽${bonus}${pay?` and ₽${pay} from Pay Day`:''}`);
@@ -1073,7 +1082,7 @@ function waveDone(){
 function gameOver(){G.over=true;G.running=false;const k=G.map.id;const reached=G.wave-1;if((best[k]||0)<reached){best[k]=reached;store.set('pokepop-best',best);}showEnd(false);}
 function showEnd(win){
   $('end').hidden=false;
-  if(win){$('endLabel').textContent='Map cleared';$('endTitle').textContent="Team Rocket's blasting off again!";$('endText').textContent=`Ash's Pikachu is safe. You stopped all 40 waves on ${G.map.name} with ${G.lives} HP left. Keep going in freeplay, where Team Rocket keeps sending tougher balls, or try a harder map.`;$('endPrimary').textContent='Keep playing (freeplay)';}
+  if(win){$('endLabel').textContent='Map cleared';$('endTitle').textContent="Team Rocket's blasting off again!";$('endText').textContent=`Ash's Pikachu is safe. You stopped all 40 waves on ${G.map.name} with ${G.lives} HP left. Keep going in freeplay, where Team Rocket sends faster, tougher balls every wave and money is scarce, or try a harder map.`;$('endPrimary').textContent='Keep playing (freeplay)';}
   else{$('endLabel').textContent='Game over';$('endTitle').textContent='Team Rocket caught Pikachu!';$('endText').textContent=`Jessie, James and Meowth got away at wave ${G.wave} on ${G.map.name}. Spread your team along the path, evolve earlier, and bring something that can see Dusk Balls.`;$('endPrimary').textContent='Try again';}
 }
 
@@ -1271,7 +1280,7 @@ $('pause').onclick=()=>{G.paused=!G.paused;updateHud(true);};
 $('auto').onchange=e=>{G.auto=e.target.checked;G.autoTimer=.5;};
 $('menuBtn').onclick=()=>{openMenu();};
 $('endMaps').onclick=()=>{$('end').hidden=true;openMenu();};
-$('endPrimary').onclick=()=>{if(G.won&&!G.freeplay){G.freeplay=true;$('end').hidden=true;updateHud(true);toast('Freeplay. The balls get tougher every wave.');}else newGame(G.map);};
+$('endPrimary').onclick=()=>{if(G.won&&!G.freeplay){G.freeplay=true;$('end').hidden=true;updateHud(true);toast('Freeplay. Balls get faster and tougher every wave, and pops pay less.');}else newGame(G.map);};
 $('mute').onclick=()=>{muted=!muted;$('mute').textContent=muted?'Sound off':'Sound on';store.set('pokepop-muted',muted);};
 document.addEventListener('keydown',e=>{
   if(e.target.closest&&e.target.closest('input'))return;

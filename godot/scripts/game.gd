@@ -111,6 +111,8 @@ var best := {}
 var traps: Array = []
 var diff := "normal"
 var spd_mul := 1.0
+var ramp_spd := 1.0  # freeplay speed-up for the current wave
+var cash_frac := 0.0  # pop money below ₽1 waiting to add up
 var start_lives := 0
 var repel := 0.0
 var candy := false
@@ -149,7 +151,7 @@ func new_game(m: Dictionary, difficulty := "normal") -> void:
 	setup_map(m)
 	diff = difficulty if Data.DIFFS.has(difficulty) else "normal"
 	var dd: Dictionary = Data.DIFFS[diff]
-	spd_mul = dd.speed
+	spd_mul = dd.speed; ramp_spd = 1.0; cash_frac = 0.0
 	traps = []; repel = 0.0; candy = false; item_uses = {}
 	coins = []; marks = []; alarm = 0.0; money = int(round(m.cash * dd.cash)); lives = int(round(m.lives * dd.lives)); wave = 0; running = false
 	start_lives = lives
@@ -168,6 +170,8 @@ func spawn_ball(type: String, d: float) -> Ball:
 		hp = Data.master_hp(wave)
 	else:
 		hp = def.hp * (2 if wave > 40 and type == "heavy" else 1)
+		if def.hp > 1:
+			hp *= Data.freeplay_hp(wave, false)
 	var b := Ball.new()
 	b.id = next_id; next_id += 1
 	b.type = type; b.def = def; b.d = maxf(0, d); b.hp = hp; b.max_hp = hp
@@ -196,9 +200,17 @@ func damage(b: Ball, amt: float, src: Tower) -> void:
 		pop_ball(b, src, -b.hp)
 
 
+## Pop money, scaled down in late waves (Data.pop_cash). Fractions carry over.
+func earn(n: float) -> void:
+	cash_frac += n * Data.pop_cash(wave)
+	var whole := int(floor(cash_frac))
+	money += whole
+	cash_frac -= whole
+
+
 func pop_ball(b: Ball, src: Tower, over_dmg: float) -> void:
 	b.dead = true
-	money += 1 + (1 if src and src.s.dream else 0) + (3 if src and src.s.thief else 0) + (1 if src and src.lucky else 0)
+	earn(1 + (1 if src and src.s.dream else 0) + (3 if src and src.s.thief else 0) + (1 if src and src.lucky else 0))
 	if src:
 		src.pops += 1
 	var def := b.def
@@ -232,7 +244,7 @@ func armored(b: Ball) -> bool:
 func shatter(b: Ball, src: Tower) -> void:
 	var n := Data.rbe(b.type)
 	b.dead = true
-	money += n
+	earn(n)
 	src.pops += n
 	fx.append({"kind": "ring", "x": b.x, "y": b.y, "r": 6, "to": 46, "life": .4, "max": .4, "col": Color("#c8f4ff"), "w": 5})
 	for i in 14:
@@ -1456,7 +1468,7 @@ func step(dt: float) -> void:
 		elif b.sleep > 0:
 			b.sleep -= dt
 		else:
-			var mv: float = 60 * def.spd * b.slow * dt * spd_mul
+			var mv: float = 60 * def.spd * b.slow * dt * spd_mul * ramp_spd
 			if def.get("accel", false):
 				b.age += dt
 				mv *= minf(2.5, .6 + b.age * .12)
@@ -1489,7 +1501,7 @@ func step(dt: float) -> void:
 				sd.left -= 1
 				if sd.left <= 0:
 					b.seed = null
-				money += 1
+				earn(1)
 				damage(b, 1, sd.src)
 		if not b.dead and b.d >= path.total and not def.get("boss", false) and _safeguard(b):
 			continue
@@ -1581,7 +1593,7 @@ func step(dt: float) -> void:
 			elif p.kind == "coin":
 				if not tgt.dead:
 					damage(tgt, 4, src)
-					money += 1
+					earn(1)
 				for i in 4:
 					var a := randf() * TAU
 					parts.append({"x": p.x, "y": p.y, "vx": cos(a) * 60, "vy": sin(a) * 60, "life": .3, "max": .3, "col": Color("#ffd23f"), "size": 2.4})
@@ -1643,6 +1655,7 @@ func start_wave() -> void:
 		if tw.kind == "snorlax":
 			tw.hold = tw.s.hold
 			tw.down = 0.0
+	ramp_spd = Data.freeplay_speed(wave)
 	q = Data.make_wave(wave)
 	qt = 0.0
 	running = true
@@ -1658,14 +1671,15 @@ func start_wave() -> void:
 
 func wave_done() -> void:
 	running = false
-	var bonus := 150 + wave * 10
+	var bonus := Data.wave_bonus(wave)
 	money += bonus
 	auto_timer = 1.0
 	var pay := 0
 	for tw in towers:
 		if tw.s.pay:
-			pay += int(tw.s.pay)
-			pay_day(tw, int(tw.s.pay))
+			var amt := int(round(tw.s.pay * Data.pay_cash(wave)))
+			pay += amt
+			pay_day(tw, amt)
 	money += pay
 	var healed := 0
 	for tw in towers:

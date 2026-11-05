@@ -1782,7 +1782,7 @@ func _show_end(win: bool) -> void:
 	if win:
 		_end_label.text = "MAP CLEARED"
 		_end_title.text = "Team Rocket's blasting off again!"
-		_end_text.text = "Ash's Pikachu is safe. You stopped all 40 waves on %s with %d HP left. Keep going in freeplay, where Team Rocket keeps sending tougher balls, or try a harder map." % [game.map.name, game.lives]
+		_end_text.text = "Ash's Pikachu is safe. You stopped all 40 waves on %s with %d HP left. Keep going in freeplay, where Team Rocket sends faster, tougher balls every wave and money is scarce, or try a harder map." % [game.map.name, game.lives]
 		_end_primary.text = "Keep playing (freeplay)"
 	else:
 		_end_label.text = "GAME OVER"
@@ -1797,7 +1797,7 @@ func _end_primary_pressed() -> void:
 		game.freeplay = true
 		_end.visible = false
 		_update_hud(true)
-		_show_toast("Freeplay. The balls get tougher every wave.")
+		_show_toast("Freeplay. Balls get faster and tougher every wave, and pops pay less.")
 	else:
 		_start_map(game.map, game.diff)
 

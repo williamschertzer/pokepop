@@ -499,11 +499,45 @@ static func stable_sort(arr: Array, less: Callable) -> Array:
 
 
 static func master_hp(n: int) -> int:
-	return int(round(260 * (1 + maxf(0, n - 25) * .08)))
+	return int(round(260 * (1 + maxf(0, n - 25) * .08) * freeplay_hp(n)))
 
 
 static func rocket_hp(n: int) -> int:
-	return int(round(1500 * (1 + maxf(0, n - 40) * .12)))
+	return int(round(1500 * (1 + maxf(0, n - 40) * .12) * freeplay_hp(n)))
+
+
+## How much of each pop's ₽ you keep. Late waves send far more balls, so pops
+## pay less from wave 31 and much less in freeplay, where money used to pile up.
+static func pop_cash(n: int) -> float:
+	if n <= 30:
+		return 1.0
+	if n <= 40:
+		return .7
+	if n <= 50:
+		return .35
+	if n <= 60:
+		return .2
+	return .1
+
+
+## Money for clearing a wave. Freeplay waves pay a small flat amount.
+static func wave_bonus(n: int) -> int:
+	return 120 + n * 8 if n <= 40 else 60
+
+
+## Pay Day keeps its full value until freeplay, then shrinks with pop money.
+static func pay_cash(n: int) -> float:
+	return 1.0 if n <= 40 else pop_cash(n)
+
+
+## Freeplay ramps up every wave: balls roll 2% faster (up to +80%)...
+static func freeplay_speed(n: int) -> float:
+	return 1.0 + clampf((n - 40) * .02, 0, .8)
+
+
+## ...balls that take several hits get 10% more health, and bosses 6% more.
+static func freeplay_hp(n: int, boss := true) -> float:
+	return 1.0 + maxf(0, n - 40) * (.06 if boss else .1)
 
 
 static func compute_stats(kind: String, a: int, b: int) -> Dictionary:
