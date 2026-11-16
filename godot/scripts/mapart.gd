@@ -16,10 +16,13 @@ const THEME := {
 	"tunnel": {"ground": "#54493f", "s1": "#4a4037", "s2": "#5f5247", "path": "#8f806b", "edge": "#3a3029"},
 	"ice": {"ground": "#cfe4ee", "s1": "#bdd7e4", "s2": "#e2f2f8", "path": "#9fc4d8", "edge": "#6f9ab3", "water": "#2f6fa8", "shore": "#f4fbff"},
 	"victory": {"ground": "#8f6d52", "s1": "#815f46", "s2": "#9c7b5f", "path": "#c6aa86", "edge": "#5e4535"},
+	"safari": {"ground": "#93c45a", "s1": "#83b24c", "s2": "#a6d06c", "path": "#dcc08a", "edge": "#a8885a", "water": "#3f9ad8", "shore": "#e6d6a0"},
+	"volcano": {"ground": "#5b3b33", "s1": "#4e322b", "s2": "#6b463b", "path": "#a98a72", "edge": "#3a241e", "lava": "#ff5a14", "crust": "#2a1714"},
+	"deepcave": {"ground": "#4a4658", "s1": "#403c4e", "s2": "#565166", "path": "#8a8498", "edge": "#2e2a3a", "water": "#2a5a8a", "shore": "#5e5a70"},
 }
 
-const GRASSY := ["route", "forest", "coast"]
-const ROCKY := ["cave", "tunnel", "victory"]
+const GRASSY := ["route", "forest", "coast", "safari"]
+const ROCKY := ["cave", "tunnel", "victory", "volcano", "deepcave"]
 
 const LABELS := {
 	"route1": [["PALLET TOWN", 225, 578], ["VIRIDIAN CITY", 575, 22]],
@@ -30,6 +33,10 @@ const LABELS := {
 	"rocktunnel": [["ROUTE 10", 70, 44], ["LAVENDER TOWN", 95, 576]],
 	"seafoam": [["ROUTE 20", 75, 112], ["SEAFOAM B4F", 890, 94]],
 	"victory": [["ROUTE 23", 80, 424], ["INDIGO PLATEAU", 880, 104]],
+	"diglett": [["ROUTE 2", 70, 466], ["ROUTE 11", 900, 446]],
+	"safari": [["FUCHSIA CITY", 400, 578], ["AREA 2", 900, 76]],
+	"cinnabar": [["CINNABAR LAB", 80, 266], ["SUMMIT", 360, 22]],
+	"cerulean": [["CERULEAN CITY", 880, 56], ["DEEPEST CHAMBER", 880, 228]],
 }
 
 
@@ -40,6 +47,14 @@ static func in_water(map: Dictionary, x: float, y: float) -> bool:
 			if x >= w[1] and x <= w[1] + w[3] and y >= w[2] and y <= w[2] + w[4]:
 				return true
 		elif pow((x - w[1]) / w[3], 2) + pow((y - w[2]) / w[4], 2) <= 1:
+			return true
+	return false
+
+
+## True if the point is in one of the map's lava pools.
+static func in_lava(map: Dictionary, x: float, y: float) -> bool:
+	for w in map.get("lava", []):
+		if pow((x - w[1]) / w[3], 2) + pow((y - w[2]) / w[4], 2) <= 1:
 			return true
 	return false
 
@@ -92,7 +107,7 @@ static func gen_obstacles(map: Dictionary, path: Dictionary) -> Dictionary:
 			return false
 		if dist_to_path(path, x, y) <= r + gap:
 			return false
-		if in_water(map, x, y):
+		if in_water(map, x, y) or in_lava(map, x, y):
 			return false
 		for o in obs:
 			if Vector2(o.x - x, o.y - y).length() <= o.r + r - 4:
@@ -209,6 +224,36 @@ static func gen_obstacles(map: Dictionary, path: Dictionary) -> Dictionary:
 				var py := rng.next() * H
 				if dist_to_path(path, px, py) > 40 and not in_water(map, px, py):
 					deco.append({"kind": "crystal", "x": px, "y": py, "c": "#e6fbff", "g": "#ffffff"})
+		"safari":
+			var x := 18.0
+			while x < W:
+				add.call(x, 16, 17, "tree", 24)
+				x += 34
+			for cc in [[300, 250], [560, 420], [820, 230], [80, 560], [260, 560]]:
+				for i in 5:
+					var ax: float = cc[0] + (rng.next() - .5) * 90
+					var ay: float = cc[1] + (rng.next() - .5) * 60
+					add.call(ax, ay, 17, "tree", 24)
+			for i in 7:
+				add.call(60 + rng.next() * 840, 40 + rng.next() * 520, 11 + rng.next() * 6, "rock", 22)
+			for i in 9:
+				var gx := 60 + rng.next() * 840
+				var gy := 40 + rng.next() * 520
+				if dist_to_path(path, gx, gy) > 60 and not in_water(map, gx, gy):
+					deco.append({"kind": "grass", "x": gx, "y": gy, "w": 60 + rng.next() * 50, "h": 36 + rng.next() * 26})
+			for i in 12:
+				var fx := rng.next() * W
+				var fy := rng.next() * H
+				if not in_water(map, fx, fy):
+					deco.append({"kind": "flower", "x": fx, "y": fy, "c": "#ffd23f" if rng.next() < .5 else "#ff9ac0"})
+		"volcano":
+			_scatter(rng, add, 90, .45, 22, 6, "boulder", 12)
+			_scatter(rng, add, 56, .45, 11, 5, "rock", 16)
+			for i in 12:
+				var px := rng.next() * W
+				var py := rng.next() * H
+				if not in_lava(map, px, py):
+					deco.append({"kind": "crater", "x": px, "y": py, "r": 10 + rng.next() * 16})
 		"victory":
 			_scatter(rng, add, 78, .6, 22, 6, "boulder", 12)
 			_scatter(rng, add, 48, .5, 11, 5, "rock", 16)
@@ -331,6 +376,27 @@ static func _paint_water(c: Pen, map: Dictionary, th: Dictionary, rng: Data.Rng)
 			c.stroke(Color(1, 1, 1, .35), 1.2, true)
 
 
+static func _paint_lava(c: Pen, map: Dictionary, th: Dictionary, rng: Data.Rng) -> void:
+	var lava: Array = map.get("lava", [])
+	if lava.is_empty():
+		return
+	for w in lava:
+		c.glow(w[1], w[2], maxf(w[3], w[4]) * 1.5, Color(1, .35, .05, .5))
+	for w in lava:
+		_water_shape(c, w, 8); c.fill(th.crust)
+	for w in lava:
+		_water_shape(c, w, 0); c.fill(th.lava)
+		_water_shape(c, w, -12); c.fill("#ff8a1f")
+		_water_shape(c, w, -26); c.fill("#ffc23a")
+	# dark cooling crust floating on top
+	for i in 260:
+		var x := rng.next() * W
+		var y := rng.next() * H
+		if in_lava(map, x, y) and in_lava(map, x - 10, y) and in_lava(map, x + 10, y):
+			var r := 3 + rng.next() * 6
+			c.ell(x, y, r * 1.4, r); c.fill(Color("#7a2a0e", .55))
+
+
 static func _paint_base(c: Pen, map: Dictionary, path: Dictionary, obs: Array, deco: Array) -> void:
 	var th: Dictionary = THEME[map.theme]
 	var rng := Data.Rng.new(Data.hash_str(map.id))
@@ -379,6 +445,7 @@ static func _paint_base(c: Pen, map: Dictionary, path: Dictionary, obs: Array, d
 				c.line_to(x, y)
 			c.stroke(Color(1, 1, 1, .5), 1.2, true)
 	_paint_water(c, map, th, rng)
+	_paint_lava(c, map, th, rng)
 	for d in deco:
 		match d.kind:
 			"grass":
@@ -513,7 +580,9 @@ static func _paint_top(c: Pen, map: Dictionary) -> void:
 			c.radial(W / 2, H / 2, [[H * .3, Color(0, 30 / 255.0, 0, 0)], [H * .9, Color(0, 25 / 255.0, 5 / 255.0, .35)], [800.0, Color(0, 25 / 255.0, 5 / 255.0, .35)]], 48)
 		"cave", "victory":
 			c.radial(W / 2, H / 2, [[H * .25, Color(0, 0, 0, 0)], [H * .85, Color(10 / 255.0, 6 / 255.0, 2 / 255.0, .5)], [800.0, Color(10 / 255.0, 6 / 255.0, 2 / 255.0, .5)]], 48)
-		"tunnel":
+		"volcano":
+			c.radial(W / 2, H / 2, [[H * .3, Color(.3, .05, 0, 0)], [H * .9, Color(.25, .04, 0, .4)], [800.0, Color(.25, .04, 0, .4)]], 48)
+		"tunnel", "deepcave":
 			c.radial(W / 2, H / 2, [[H * .15, Color(0, 0, 0, 0)], [H * .7, Color(6 / 255.0, 4 / 255.0, 2 / 255.0, .62)], [800.0, Color(6 / 255.0, 4 / 255.0, 2 / 255.0, .7)]], 48)
 		"ice":
 			c.radial(W / 2, H / 2, [[H * .3, Color(1, 1, 1, 0)], [H * .95, Color(200 / 255.0, 230 / 255.0, 1, .35)], [800.0, Color(200 / 255.0, 230 / 255.0, 1, .35)]], 48)

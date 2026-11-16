@@ -4,7 +4,7 @@ A Pokémon tower defense game in the style of Bloons TD. Team Rocket is firing P
 
 ## Play
 
-There are two versions. The **Godot version** (in `godot/`) is the main one: it has 16 Pokémon, a Pokédex, items and difficulty levels. The **classic web version** (`index.html` in the repo root) is the original 8-Pokémon game.
+There are two versions. The **Godot version** (in `godot/`) is the main one: it has 23 Pokémon, 12 maps, a Pokédex, items and difficulty levels. The **classic web version** (`index.html` in the repo root) is the original 8-Pokémon game.
 
 ### In your browser
 

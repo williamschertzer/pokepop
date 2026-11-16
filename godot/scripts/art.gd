@@ -28,6 +28,10 @@ const SPRITE_INFO := {
 	"eevee": {"name": "Eevee", "scale": .86}, "vaporeon": {"name": "Vaporeon", "scale": .96}, "jolteon": {"name": "Jolteon", "scale": .94}, "flareon": {"name": "Flareon", "scale": .94},
 	"ditto": {"name": "Ditto", "scale": .9},
 	"chansey": {"name": "Chansey", "scale": .92}, "blissey": {"name": "Blissey", "scale": 1.0},
+	"clefairy": {"name": "Clefairy", "scale": .88}, "clefable": {"name": "Clefable", "scale": .96},
+	"togepi": {"name": "Togepi", "scale": .86}, "togetic": {"name": "Togetic", "scale": .92}, "togekiss": {"name": "Togekiss", "scale": 1.0, "float": true},
+	"caterpie": {"name": "Caterpie", "scale": .86}, "metapod": {"name": "Metapod", "scale": .86}, "butterfree": {"name": "Butterfree", "scale": .92, "float": true}, "gmaxbutterfree": {"name": "Gigantamax Butterfree", "scale": 1.0, "float": true},
+	"growlithe": {"name": "Growlithe", "scale": .9}, "arcanine": {"name": "Arcanine", "scale": 1.04},
 }
 
 static var _mon_cache := {}
@@ -40,7 +44,8 @@ static var _pen := Pen.new()
 const ANIMATED := ["gmax", "charmander", "charmeleon", "charizard", "megax", "gastly", "haunter", "megagengar", "venusaur", "megavenusaur", "wobbuffet", "mewtwo", "armormewtwo", "megamewtwo",
 	"magikarp", "megagyarados", "pidgey", "pidgeotto", "pidgeot", "megapidgeot", "geodude", "gmaxmachamp", "megaalakazam", "gmaxlapras", "dragonair",
 	"raichu", "meowth", "persian", "wartortle", "ivysaur", "gyarados", "abra", "kadabra", "alakazam", "lapras", "snorlax", "gmaxsnorlax", "dratini", "dragonite",
-	"ditto", "vaporeon", "flareon", "eevee", "chansey", "blissey"]
+	"ditto", "vaporeon", "flareon", "eevee", "chansey", "blissey",
+	"clefairy", "clefable", "togepi", "togetic", "togekiss", "caterpie", "metapod", "butterfree", "gmaxbutterfree", "growlithe", "arcanine"]
 
 
 static func mon(sp: String, t: float, opt := {}, alpha := 1.0) -> Array:

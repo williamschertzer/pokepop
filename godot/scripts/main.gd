@@ -173,7 +173,7 @@ class Lens extends Control:
 ## Animated backdrop for the title screen: a night sky, the party standing
 ## guard and Team Rocket's Pokéballs rolling along the route below them.
 class TitleArt extends Control:
-	const PARTY := ["pikachu", "charmander", "squirtle", "bulbasaur", "gastly", "meowth", "wobbuffet", "mewtwo"]
+	const PARTY := ["pikachu", "charmander", "squirtle", "bulbasaur", "growlithe", "clefairy", "caterpie", "togepi", "chansey", "mewtwo"]
 	const ROLL := ["poke", "great", "ultra", "poke", "quick", "great", "heavy", "poke", "dusk", "ultra"]
 	var t := 0.0
 
@@ -417,6 +417,12 @@ func _save_run() -> void:
 func _on_wave_cleared() -> void:
 	_save_run()
 	var now := _unlocked_now()
+	if game.wave == 40 and not game.freeplay and not _unlock_all:
+		var i := Data.MAP_ORDER.find(game.map.id)
+		if i >= 0 and i + 1 < Data.MAP_ORDER.size():
+			var nxt: String = Data.MAP_ORDER[i + 1]
+			if not Data.map_played(nxt, game.best):
+				_show_toast("New map unlocked: %s!" % Data.map_by_id(nxt).name)
 	for k in now:
 		if not _unlock_all and not _seen_unlocked.has(k):
 			_show_toast("New Pokémon unlocked: %s! Find it in your Party." % Data.TOWERS[k].name)
@@ -1161,7 +1167,7 @@ func _build_menu() -> void:
 		["Gastly", "Exploding Shadow Balls and a ghost's eye for hidden Dusk Balls."],
 		["Meowth", "Quit Team Rocket. Pay Day earns Pokédollars every wave."],
 		["Wobbuffet", "Never attacks. Hurts itself in confusion, which its upgrades weaponize."],
-		["Mewtwo", "Costs ₽3000. Worth it."],
+		["Mewtwo", "Costs ₽4500. Worth it."],
 	]
 	for tip in tips:
 		var p := PanelContainer.new()
@@ -1178,9 +1184,9 @@ func _build_menu() -> void:
 		p.add_child(pv)
 		how.add_child(p)
 	if _phone:
-		v.add_child(_lbl("Drag a Pokémon from your Party onto the map, or tap it in the Party to read about it first and then tap the map twice: once to preview the spot, once to place. Tap a Pokémon on the map to upgrade it. Rocks, trees, boulders, ice and even a sleeping Snorlax take up good spots: tap one to see which Pokémon can clear it. Only Squirtle, Magikarp and Lapras can stand in water.", 12.5, MUTED, f_light, true))
+		v.add_child(_lbl("Drag a Pokémon from your Party onto the map, or tap it in the Party to read about it first and then tap the map twice: once to preview the spot, once to place. Tap a Pokémon on the map to upgrade it. Rocks, trees, boulders, ice and even a sleeping Snorlax take up good spots: tap one to see who can clear it. That Pokémon has to be close enough and know the right move. Caves are dark: teach Pikachu or Clefairy Flash. Only Squirtle, Magikarp and Lapras can stand in water, and only Charmander and Growlithe in lava. Beat a map to unlock the next one.", 12.5, MUTED, f_light, true))
 		return
-	var help := _lbl("Drag a Pokémon from your Party onto the map, or click it and then click the map. Keys: 1 to 9 and 0 pick a Pokémon, Space starts a wave, F changes speed, P pauses, Esc cancels or opens the menu. On a touch screen you can also tap a spot to preview and tap it again to place. Rocks, trees, boulders, ice and even a sleeping Snorlax take up good spots: tap one to see which Pokémon can clear it. Only Squirtle, Magikarp and Lapras can stand in water.", 12.5, MUTED, f_light, true)
+	var help := _lbl("Drag a Pokémon from your Party onto the map, or click it and then click the map. Keys: 1 to 9 and 0 pick a Pokémon, Space starts a wave, F changes speed, P pauses, Esc cancels or opens the menu. On a touch screen you can also tap a spot to preview and tap it again to place. Rocks, trees, boulders, ice and even a sleeping Snorlax take up good spots: click one to see who can clear it. That Pokémon has to be close enough and know the right move. Caves are dark: teach Pikachu or Clefairy Flash so your Pokémon can see. Only Squirtle, Magikarp and Lapras can stand in water, and only Charmander and Growlithe in lava. Beat a map to unlock the next one.", 12.5, MUTED, f_light, true)
 	v.add_child(help)
 
 
@@ -1370,7 +1376,15 @@ func _open_dex() -> void:
 	var tl := _lbl("Pokédex", 30, TEXT, f_disp_b)
 	top.add_child(tl)
 	_dex_box.add_child(top)
-	_dex_box.add_child(_lbl("Every Pokémon you can bring and every ball Team Rocket throws. New Pokémon unlock as you beat later waves and more maps on Normal or Hard.", 14, MUTED, f_light, true))
+	var n_mons := Data.KINDS.filter(func(k): return _unlocked(k)).size()
+	var n_maps := Data.MAP_ORDER.filter(func(id): return _unlock_all or Data.map_needs(id, game.best) == "").size()
+	var n_beat := Data.MAP_ORDER.filter(func(id): return Data.map_beaten(id, game.best)).size()
+	var prog := _hbox(8)
+	prog.add_child(_pill("%d / %d Pokémon" % [n_mons, Data.KINDS.size()], GOLD, Color("#2b2200"), 12))
+	prog.add_child(_pill("%d / %d maps open" % [n_maps, Data.MAP_ORDER.size()], Color("#7fb6ff"), Color("#0e2240"), 12))
+	prog.add_child(_pill("%d beaten" % n_beat, Color("#7be3a2"), Color("#0e2a18"), 12))
+	_dex_box.add_child(prog)
+	_dex_box.add_child(_lbl("Every Pokémon you can bring, the maps, and every ball Team Rocket throws. New Pokémon unlock as you beat later waves and more maps on Normal or Hard. Beating a map on any difficulty opens the next one.", 14, MUTED, f_light, true))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	if _phone and get_viewport_rect().size.x < 800:
@@ -1380,6 +1394,50 @@ func _open_dex() -> void:
 	_dex_box.add_child(grid)
 	for k in Data.KINDS:
 		grid.add_child(_dex_card(k))
+	_dex_box.add_child(_lbl("Maps", 22, TEXT, f_disp_b))
+	var mg := GridContainer.new()
+	mg.columns = 1 if _phone and get_viewport_rect().size.x < 800 else 2
+	mg.add_theme_constant_override("h_separation", 12)
+	mg.add_theme_constant_override("v_separation", 8)
+	_dex_box.add_child(mg)
+	for i in Data.MAP_ORDER.size():
+		var m: Dictionary = Data.map_by_id(Data.MAP_ORDER[i])
+		var needs := "" if _unlock_all else Data.map_needs(m.id, game.best)
+		var mp := PanelContainer.new()
+		mp.add_theme_stylebox_override("panel", _sb(PANEL, 10, 10))
+		mp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var mv := _vbox(2)
+		var mh := _hbox(6)
+		mh.add_child(_lbl("%d. %s" % [i + 1, m.name], 14, TEXT if needs == "" else MUTED, f_bold))
+		mh.add_child(_pill(m.diff, Color(Data.DIFF_COLORS[m.diff]), Color("#141630"), 9))
+		mv.add_child(mh)
+		var notes: Array = [m.sub + "."]
+		if m.get("dark", false):
+			notes.append("Dark cave: Pokémon see 40% less far unless Flash or a Fire Pokémon lights them up.")
+		if m.has("water"):
+			notes.append("Water: only swimmers can stand in it.")
+		if m.has("lava"):
+			notes.append("Lava: only Charmander and Growlithe can stand in it.")
+		if needs != "":
+			notes.append("Locked: beat %s to open it." % Data.map_by_id(needs).name)
+		elif Data.map_beaten(m.id, game.best):
+			notes.append("Beaten.")
+		var nl2 := _lbl(" ".join(notes), 11.5, MUTED, f_light, true)
+		nl2.custom_minimum_size.x = 0 if _phone else 380
+		mv.add_child(nl2)
+		mp.add_child(mv)
+		mg.add_child(mp)
+	_dex_box.add_child(_lbl("Clearing obstacles", 22, TEXT, f_disp_b))
+	var ol: Array = []
+	for ok in Data.OBSTACLES:
+		var od: Dictionary = Data.OBSTACLES[ok]
+		var who: Array = []
+		for k in od.by:
+			var src := Data.move_source(k, od.by[k])
+			var how := " (learn it for ₽%d)" % Data.HMS[k][od.by[k]] if src == "hm" else (" (upgrade)" if src == "upgrade" else "")
+			who.append("%s with %s%s" % [Data.TOWERS[k].name, od.by[k], how])
+		ol.append("%s, ₽%d: %s." % [od.name, od.cost, ", or ".join(who)])
+	_dex_box.add_child(_lbl("The Pokémon has to be close enough that the obstacle is inside its range, and it has to know the move. Teach field moves from its upgrade panel.\n" + "\n".join(ol), 13.5, MUTED, f_light, true))
 	_dex_box.add_child(_lbl("Pokéballs", 22, TEXT, f_disp_b))
 	var bg := GridContainer.new()
 	bg.columns = 2 if _phone else 3
@@ -1432,12 +1490,20 @@ func _dex_card(k: String) -> Control:
 	hv.add_child(_lbl(d.name, 18, TEXT, f_disp))
 	var meta := _hbox(6)
 	meta.add_child(_pill(d.type, Color(Data.TYPE_COLORS[d.type])))
+	if Data.HEALERS.has(k):
+		meta.add_child(_pill("Healer", Color("#ffb3d0"), Color("#3a0e20")))
 	meta.add_child(_lbl("₽%d · %s" % [d.cost, d.role], 12, MUTED, f_light))
 	hv.add_child(meta)
 	head.add_child(hv)
 	v.add_child(head)
 	if locked:
 		v.add_child(_lbl(_lock_text(k), 12.5, GOLD, f_light, true))
+	var hms: Dictionary = Data.HMS.get(k, {})
+	if not hms.is_empty():
+		var fl: Array = []
+		for mv in hms:
+			fl.append("%s (₽%d)" % [mv, hms[mv]])
+		v.add_child(_lbl("Field moves: " + ", ".join(fl), 12, Color("#a8d8ff"), f_light, true))
 	var bl := _lbl(d.blurb, 12.5, MUTED, f_light, true)
 	bl.custom_minimum_size.x = 0 if _phone else 480
 	v.add_child(bl)
@@ -1525,7 +1591,7 @@ func _build_settings() -> void:
 	chk.toggled.connect(func(on): _confirm_release = on; _save())
 	v.add_child(chk)
 	var ua := CheckBox.new()
-	ua.text = "Unlock every Pokémon right away"
+	ua.text = "Unlock every Pokémon and map right away"
 	ua.focus_mode = Control.FOCUS_NONE
 	ua.button_pressed = _unlock_all
 	ua.add_theme_font_size_override("font_size", 14)
@@ -1695,7 +1761,9 @@ func _open_menu() -> void:
 		var vw := get_viewport_rect().size.x - 32
 		_maps_grid.columns = 4 if vw >= 760 else 3
 		pw = (vw - (_maps_grid.columns - 1) * 12) / _maps_grid.columns - 4
-	for m in Data.MAPS:
+	for mid in Data.MAP_ORDER:
+		var m: Dictionary = Data.map_by_id(mid)
+		var needs := "" if _unlock_all else Data.map_needs(m.id, game.best)
 		var path := MapArt.build_path(m.path)
 		var o := MapArt.gen_obstacles(m, path)
 		var cmds := MapArt.render_bg(m, path, o.obs, o.deco)
@@ -1707,6 +1775,8 @@ func _open_menu() -> void:
 		card.add_child(cv)
 		var prev := MapPreview.new(cmds, pw)
 		cv.add_child(prev)
+		if needs != "":
+			prev.modulate = Color(.3, .3, .4)
 		var mc := MarginContainer.new()
 		for side in ["left", "right"]:
 			mc.add_theme_constant_override("margin_" + side, 12)
@@ -1723,21 +1793,39 @@ func _open_menu() -> void:
 		var sp := Control.new()
 		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(sp)
+		if m.get("dark", false):
+			row.add_child(_pill("Dark", Color("#3a3560"), Color("#e6e0ff"), 10))
+		elif m.has("lava"):
+			row.add_child(_pill("Lava", Color("#ff7a2a"), Color("#2a0e00"), 10))
 		var bw: int = game.best.get(Data.best_key(m.id, _diff), 0)
-		if bw >= 40:
+		if needs != "":
+			row.add_child(_pill("Locked", Color("#3a4280"), TEXT, 10))
+		elif bw >= 40:
 			row.add_child(_pill("Cleared", GOLD, Color("#2b2200"), 10))
-		row.add_child(_lbl("Best: wave %d" % bw if bw else "%d HP" % int(round(m.lives * Data.DIFFS[_diff].lives)), 12, MUTED, f_light))
+		else:
+			row.add_child(_lbl("Best: wave %d" % bw if bw else "%d HP" % int(round(m.lives * Data.DIFFS[_diff].lives)), 12, MUTED, f_light))
 		var rm := MarginContainer.new()
 		rm.add_theme_constant_override("margin_top", 6)
 		rm.add_child(row)
 		info.add_child(rm)
+		if needs != "":
+			var nl := _lbl("Beat %s to unlock" % Data.map_by_id(needs).name, 12, GOLD, f_light)
+			nl.clip_text = true
+			nl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			nl.custom_minimum_size.x = 1
+			nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			info.add_child(nl)
 		if _phone:
 			# the card is only as wide as its preview; trim text that would widen it
 			for l in [info.get_child(0), info.get_child(1), row.get_child(row.get_child_count() - 1)]:
 				l.clip_text = true
 				l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 				l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card.pressed.connect(_start_map.bind(m))
+		if needs != "":
+			card.set_disabled(true)
+			card.tooltip_text = "Locked. Beat %s (wave 40 on any difficulty) to unlock %s." % [Data.map_by_id(needs).name, m.name]
+		else:
+			card.pressed.connect(_start_map.bind(m))
 		_maps_grid.add_child(card)
 	if _phone:
 		_pass_through(_menu)
@@ -2230,11 +2318,12 @@ func _render_obstacle() -> void:
 		_obs_card.position = Vector2(minf(o.x + o.r + 18, Data.W - 300) if right else maxf(o.x - o.r - 18 - 296, 10), clampf(o.y - 90, 10, Data.H - 330))
 		_obs_card.size = Vector2.ZERO
 		_obs_box.add_child(_lbl(od.name, 18, TEXT, f_disp))
-	_obs_box.add_child(_lbl("It's taking up a spot. Clear it away to make room for a Pokémon.", 12.5, MUTED, f_light, true))
+	_obs_box.add_child(_lbl("It's taking up a spot. To clear it, a Pokémon that knows the right move has to have it inside its range.", 12.5, MUTED, f_light, true))
 	if od.has("note"):
 		_obs_box.add_child(_lbl(od.note, 12.5, MUTED, f_light, true))
 	_obs_box.add_child(_caps("Who can clear it"))
 	var have := game.clearers(o)
+	var cands := game.clear_candidates(o)
 	for k in od.by:
 		var row := _hbox(8)
 		var icon := MonIcon.new(Data.sprite_for(k, 0), 36, .6, INSET)
@@ -2242,9 +2331,21 @@ func _render_obstacle() -> void:
 		var tv := _vbox(0)
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tv.add_child(_lbl(Data.TOWERS[k].name, 12.5, TEXT, f_bold))
-		var on_field := have.any(func(tw): return tw.kind == k)
-		var state := "On the field" if on_field else ("Not placed yet" if _unlocked(k) else "Not unlocked yet")
-		tv.add_child(_lbl("%s · %s" % [od.by[k], state], 11.5, GOLD if on_field else MUTED, f_light, true))
+		var ready := have.any(func(tw): return tw.kind == k)
+		var mine: Array = cands.filter(func(tw): return tw.kind == k)
+		var state: String
+		if ready:
+			state = "Ready"
+		elif mine.is_empty():
+			state = "Not placed yet" if _unlocked(k) else "Not unlocked yet"
+		elif not mine.any(func(tw): return game.reaches(tw, o)):
+			state = "Too far away"
+		else:
+			match Data.move_source(k, od.by[k]):
+				"hm": state = "Close enough. Tap it to teach %s" % od.by[k]
+				"upgrade": state = "Close enough. Needs the %s upgrade" % od.by[k]
+				_: state = "Close enough"
+		tv.add_child(_lbl("%s · %s" % [od.by[k], state], 11.5, GOLD if ready else MUTED, f_light, true))
 		row.add_child(tv)
 		_obs_box.add_child(row)
 	_clear_btn = _btn("Clear it for ₽%d" % od.cost, GOLD, Color("#2b2200"), Color("#ffe07a"))
@@ -2252,7 +2353,7 @@ func _render_obstacle() -> void:
 	_obs_box.add_child(_clear_btn)
 	if have.is_empty():
 		var names: Array = od.by.keys().map(func(k): return Data.TOWERS[k].name)
-		_obs_box.add_child(_lbl("Place %s anywhere on the map first." % " or ".join(names), 12.5, MUTED, f_light, true))
+		_obs_box.add_child(_lbl("Place %s close enough that this is inside its range, with the right move learned." % " or ".join(names), 12.5, MUTED, f_light, true))
 	_update_clear_btn()
 	if _phone:
 		_place_drawer(_obs_card, o.x > Data.W - 140)
@@ -2289,7 +2390,11 @@ func _stats_main(kind: String, s: Dictionary, sp: String) -> Array:
 		"snorlax": return [[int(s.hold), "Hold"], ["%ss" % _num(s.recover), "Nap"], [int(s.slamDmg) if s.slam else 0, "Slam"]]
 		"dratini": return [[s.dmg, "Damage"], [sp, "Speed"], ["×%d" % int(s.bossMul), "Vs bosses"]]
 		"eevee", "vaporeon", "jolteon", "flareon": return [[s.dmg, "Damage"], [sp, "Speed"], [s.targets, "Targets"]]
-		"chansey": return [[s.dmg, "Damage"], [sp, "Speed"], ["+%d" % s.heal, "HP a wave"]]
+		"chansey": return [[s.dmg, "Damage"], ["+%d" % s.heal, "HP a wave"], ["+%d" % s.help, "Pikachu dmg"]]
+		"clefairy": return [[s.dmg, "Damage"], ["%ss" % _num(s.moon), "Moonlight"], ["+%d" % s.heal, "HP a wave"]]
+		"togepi": return [[s.dmg, "Damage"], ["+%d" % s.heal, "HP a wave"], ["%d%%" % int(round(s.protect * 100)), "Protect"]]
+		"caterpie": return [[s.dmg, "Damage"], [sp, "Speed"], ["%d%%" % int(round((1 - s.string) * 100)), "Slow"]]
+		"growlithe": return [[s.dmg, "Damage"], [sp, "Speed"], [s.burn, "Burn ticks"]]
 		"ditto":
 			if s.get("copy", "") != "":
 				return _stats_main(s.copy, s, sp)
@@ -2336,6 +2441,10 @@ func _render_sheet() -> void:
 	if s.detect:
 		meta.add_child(_lbl("· Sees Dusk Balls", 12, MUTED, f_light))
 	hv.add_child(meta)
+	if s.get("_dark", false):
+		hv.add_child(_lbl("Too dark here: 40% less range. Bring Flash or a Fire Pokémon close.", 12, GOLD, f_light, true))
+	if s.get("_helped", 0):
+		hv.add_child(_lbl("Chansey's Helping Hand: +%d damage, attacks faster" % s._helped, 12, Color("#ffb3d0"), f_light, true))
 	if tw.kind == "ditto":
 		var cp: String = s.get("copy", "")
 		hv.add_child(_lbl("Transformed into %s" % Art.SPRITE_INFO[Data.sprite_for(cp, s.copyTier)].name if cp != "" else "Place it next to a Pokémon to copy it", 12, GOLD, f_light, true))
@@ -2454,6 +2563,38 @@ func _render_sheet() -> void:
 		row.add_child(rh)
 		learned.add_child(row)
 	_sheet_box.add_child(learned)
+
+	var hms: Dictionary = Data.HMS.get(tw.kind, {})
+	if not hms.is_empty():
+		var fm := _vbox(5)
+		fm.add_child(_caps("Field moves"))
+		var frow := _hbox(6)
+		for mv in hms:
+			var known: bool = tw.hms.has(mv)
+			var card_n := _sb(PANEL2 if not known else INSET, 10, 6, 2, LINE)
+			var card_h := _sb(PANEL2, 10, 6, 2, GREEN)
+			var card := CardButton.new(card_n, card_h)
+			card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			card.tooltip_text = Data.HM_DESC[mv]
+			var cv := _vbox(1)
+			card.add_child(cv)
+			cv.add_child(_lbl(mv, 12.5, TEXT, f_bold))
+			if _phone or hms.size() == 1:
+				cv.add_child(_lbl(Data.HM_DESC[mv], 10.5, MUTED, f_light, true))
+			var cl := _lbl("Learned" if known else "₽%d" % hms[mv], 12, GREEN if known else GOLD, f_bold)
+			cv.add_child(cl)
+			if known:
+				card.set_disabled(true)
+			else:
+				card.pressed.connect(func():
+					var err := game.learn_hm(tw, mv)
+					if err != "":
+						_show_toast(err)
+					_buzz())
+				_cost_widgets.append([card, int(hms[mv]), cl])
+			frow.add_child(card)
+		fm.add_child(frow)
+		_sheet_box.add_child(fm)
 
 	if tw.kind != "wobbuffet":
 		var tg := _vbox(5)
