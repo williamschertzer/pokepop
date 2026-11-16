@@ -29,6 +29,8 @@ const TYPE_EFFECT := {
 	"Grass": {"net": 2.0},
 	"Water": {"net": 0.5},
 	"Dragon": {"master": 1.5, "rocket": 1.5},
+	"Bug": {"heal": 2.0},
+	"Fairy": {"dusk": 1.5},
 }
 
 ## Easy / Normal / Hard: starting money, Pikachu HP and ball speed.
@@ -60,6 +62,10 @@ const UNLOCK := {
 	"chansey": {"wave": 20},
 	"eevee": {"wave": 40, "maps": 2},
 	"ditto": {"wave": 40, "maps": 2, "diff": "hard"},
+	"caterpie": {"wave": 10},
+	"togepi": {"wave": 30},
+	"clefairy": {"wave": 40},
+	"growlithe": {"wave": 40, "maps": 2},
 }
 const DIFF_RANK := {"easy": 0, "normal": 1, "hard": 2}
 
@@ -116,9 +122,9 @@ const TOWERS := {
 		"blurb": "Fast Thunder Shocks that chain to nearby balls. Heavy Balls ignore Electric attacks.",
 		"base": {"range": 120, "rate": 0.6, "dmg": 1, "chain": 1, "detect": false},
 		"A": [
-			{"name": "Evolve: Raichu", "cost": 500, "desc": "+1 damage, +15 range, chains to 1 more ball.", "fx": [["+", "dmg", 1], ["+", "range", 15], ["+", "chain", 1]]},
+			{"name": "Evolve: Raichu", "cost": 700, "desc": "+1 damage, +15 range, chains to 1 more ball.", "fx": [["+", "dmg", 1], ["+", "range", 15], ["+", "chain", 1]]},
 			{"name": "Light Ball", "cost": 900, "desc": "Attacks 40% faster and can see Dusk Balls.", "fx": [["*", "rate", 0.6], ["=", "detect", true]]},
-			{"name": "Gigantamax", "cost": 4200, "desc": "G-Max Volt Crash every 7s hits every ball on the map for 3.", "fx": [["=", "gmax", 7]]}],
+			{"name": "Gigantamax", "cost": 4850, "desc": "G-Max Volt Crash every 7s hits every ball on the map for 3.", "fx": [["=", "gmax", 7]]}],
 		"B": [
 			{"name": "Quick Attack", "cost": 300, "desc": "Attacks 30% faster.", "fx": [["*", "rate", 0.7]]},
 			{"name": "Thunderbolt", "cost": 750, "desc": "+1 damage and chains to 2 more balls.", "fx": [["+", "dmg", 1], ["+", "chain", 2]]},
@@ -127,9 +133,9 @@ const TOWERS := {
 		"blurb": "Short-range flame bursts that scorch a whole cluster of balls.",
 		"base": {"range": 88, "rate": 1.0, "dmg": 1, "pierce": 5, "cone": 0.5, "burn": 0, "burnMul": 1, "detect": false},
 		"A": [
-			{"name": "Evolve: Charmeleon", "cost": 550, "desc": "+1 damage, +10 range, flames hit 4 more balls.", "fx": [["+", "dmg", 1], ["+", "range", 10], ["+", "pierce", 4]]},
-			{"name": "Evolve: Charizard", "cost": 1600, "desc": "+25 range, wider flames, hits 6 more. Flies high enough to see Dusk Balls.", "fx": [["+", "range", 25], ["+", "pierce", 6], ["=", "cone", 0.8], ["=", "detect", true]]},
-			{"name": "Mega Charizard X", "cost": 5000, "desc": "+3 damage, 40% faster, burns do double damage.", "fx": [["+", "dmg", 3], ["*", "rate", 0.6], ["=", "burnMul", 2]]}],
+			{"name": "Evolve: Charmeleon", "cost": 750, "desc": "+1 damage, +10 range, flames hit 4 more balls.", "fx": [["+", "dmg", 1], ["+", "range", 10], ["+", "pierce", 4]]},
+			{"name": "Evolve: Charizard", "cost": 2250, "desc": "+25 range, wider flames, hits 6 more. Flies high enough to see Dusk Balls.", "fx": [["+", "range", 25], ["+", "pierce", 6], ["=", "cone", 0.8], ["=", "detect", true]]},
+			{"name": "Mega Charizard X", "cost": 5750, "desc": "+3 damage, 40% faster, burns do double damage.", "fx": [["+", "dmg", 3], ["*", "rate", 0.6], ["=", "burnMul", 2]]}],
 		"B": [
 			{"name": "Flamethrower", "cost": 400, "desc": "+20 range and flames hit 3 more balls.", "fx": [["+", "range", 20], ["+", "pierce", 3]]},
 			{"name": "Fire Spin", "cost": 900, "desc": "Burns balls for 1 damage every 0.75s, 4 times.", "fx": [["=", "burn", 4]]},
@@ -138,9 +144,9 @@ const TOWERS := {
 		"blurb": "Water Gun knocks balls back down the path.",
 		"base": {"range": 110, "rate": 0.85, "dmg": 1, "jets": 1, "push": 10, "bubble": false, "detect": false},
 		"A": [
-			{"name": "Evolve: Wartortle", "cost": 450, "desc": "+1 damage and pushes balls back twice as far.", "fx": [["+", "dmg", 1], ["+", "push", 10]]},
-			{"name": "Evolve: Blastoise", "cost": 1400, "desc": "Shell cannons fire at 2 balls at once. +20 range.", "fx": [["=", "jets", 2], ["+", "range", 20]]},
-			{"name": "Mega Blastoise", "cost": 4500, "desc": "Mega Launcher fires 3 jets, +2 damage, 30% faster.", "fx": [["=", "jets", 3], ["+", "dmg", 2], ["*", "rate", 0.7]]}],
+			{"name": "Evolve: Wartortle", "cost": 650, "desc": "+1 damage and pushes balls back twice as far.", "fx": [["+", "dmg", 1], ["+", "push", 10]]},
+			{"name": "Evolve: Blastoise", "cost": 1950, "desc": "Shell cannons fire at 2 balls at once. +20 range.", "fx": [["=", "jets", 2], ["+", "range", 20]]},
+			{"name": "Mega Blastoise", "cost": 5200, "desc": "Mega Launcher fires 3 jets, +2 damage, 30% faster.", "fx": [["=", "jets", 3], ["+", "dmg", 2], ["*", "rate", 0.7]]}],
 		"B": [
 			{"name": "Bubble Beam", "cost": 350, "desc": "Soaked balls move 40% slower for 1.5s.", "fx": [["=", "bubble", true]]},
 			{"name": "Squirtle Squad Shades", "cost": 700, "desc": "+25 range and spots Dusk Balls. Also looks very cool.", "fx": [["+", "range", 25], ["=", "detect", true]]},
@@ -149,9 +155,9 @@ const TOWERS := {
 		"blurb": "Razor Leaf throws spinning leaves that slice through a line of balls.",
 		"base": {"range": 115, "rate": 1.1, "dmg": 1, "leaves": 2, "pierce": 2, "detect": false},
 		"A": [
-			{"name": "Evolve: Ivysaur", "cost": 500, "desc": "+1 damage and throws 3 leaves.", "fx": [["+", "dmg", 1], ["=", "leaves", 3]]},
-			{"name": "Evolve: Venusaur", "cost": 1500, "desc": "Throws 5 leaves that each slice 1 more ball. +15 range.", "fx": [["=", "leaves", 5], ["+", "pierce", 1], ["+", "range", 15]]},
-			{"name": "Mega Venusaur", "cost": 4800, "desc": "+2 damage. Petal Blizzard hits every ball in range for 4 every 4s.", "fx": [["+", "dmg", 2], ["=", "blizzard", 4]]}],
+			{"name": "Evolve: Ivysaur", "cost": 700, "desc": "+1 damage and throws 3 leaves.", "fx": [["+", "dmg", 1], ["=", "leaves", 3]]},
+			{"name": "Evolve: Venusaur", "cost": 2100, "desc": "Throws 5 leaves that each slice 1 more ball. +15 range.", "fx": [["=", "leaves", 5], ["+", "pierce", 1], ["+", "range", 15]]},
+			{"name": "Mega Venusaur", "cost": 5500, "desc": "+2 damage. Petal Blizzard hits every ball in range for 4 every 4s.", "fx": [["+", "dmg", 2], ["=", "blizzard", 4]]}],
 		"B": [
 			{"name": "Leech Seed", "cost": 400, "desc": "Seeded balls take 1 damage a second for 4s, and each drain earns ₽1.", "fx": [["=", "seed", true]]},
 			{"name": "Sleep Powder", "cost": 900, "desc": "Every 5s, puts every ball in range to sleep for 1.2s. Master Balls resist.", "fx": [["=", "powder", 5]]},
@@ -160,9 +166,9 @@ const TOWERS := {
 		"blurb": "Shadow Balls explode on impact. Ghosts see hidden Dusk Balls.",
 		"base": {"range": 132, "rate": 1.3, "dmg": 1, "radius": 32, "detect": true, "sleep": 0, "dream": 0, "pspeed": 420},
 		"A": [
-			{"name": "Evolve: Haunter", "cost": 600, "desc": "+1 damage, bigger blasts, 15% faster.", "fx": [["+", "dmg", 1], ["+", "radius", 10], ["*", "rate", 0.85]]},
-			{"name": "Evolve: Gengar", "cost": 1500, "desc": "+2 damage, even bigger blasts, +20 range.", "fx": [["+", "dmg", 2], ["+", "radius", 12], ["+", "range", 20]]},
-			{"name": "Mega Gengar", "cost": 4800, "desc": "+3 damage, 30% faster. Shadow Tag slows every ball in range by half.", "fx": [["+", "dmg", 3], ["*", "rate", 0.7], ["=", "tag", true]]}],
+			{"name": "Evolve: Haunter", "cost": 850, "desc": "+1 damage, bigger blasts, 15% faster.", "fx": [["+", "dmg", 1], ["+", "radius", 10], ["*", "rate", 0.85]]},
+			{"name": "Evolve: Gengar", "cost": 2100, "desc": "+2 damage, even bigger blasts, +20 range.", "fx": [["+", "dmg", 2], ["+", "radius", 12], ["+", "range", 20]]},
+			{"name": "Mega Gengar", "cost": 5500, "desc": "+3 damage, 30% faster. Shadow Tag slows every ball in range by half.", "fx": [["+", "dmg", 3], ["*", "rate", 0.7], ["=", "tag", true]]}],
 		"B": [
 			{"name": "Hypnosis", "cost": 350, "desc": "Balls hit fall asleep for 0.8s. Master Balls never sleep.", "fx": [["=", "sleep", 0.8]]},
 			{"name": "Dream Eater", "cost": 800, "desc": "+2 damage to sleeping balls and ₽1 extra per pop.", "fx": [["=", "dream", 2]]},
@@ -171,7 +177,7 @@ const TOWERS := {
 		"blurb": "Quit Team Rocket. Pay Day earns ₽ at the end of every wave, and it scratches balls that get close.",
 		"base": {"range": 72, "rate": 0.7, "dmg": 1, "swipes": 1, "pay": 40, "detect": false},
 		"A": [
-			{"name": "Evolve: Persian", "cost": 700, "desc": "+1 damage. Pay Day earns ₽80 a wave.", "fx": [["+", "dmg", 1], ["=", "pay", 80]]},
+			{"name": "Evolve: Persian", "cost": 1000, "desc": "+1 damage. Pay Day earns ₽80 a wave.", "fx": [["+", "dmg", 1], ["=", "pay", 80]]},
 			{"name": "Amulet Coin", "cost": 1500, "desc": "Doubles Pay Day to ₽160 a wave.", "fx": [["*", "pay", 2]]},
 			{"name": "Gold Rush", "cost": 5000, "desc": "Pay Day +₽40. Every 6s, coins rain on up to 30 balls for 4 damage each, and every coin that lands pays ₽1.", "fx": [["=", "goldRush", 6], ["+", "pay", 40]]}],
 		"B": [
@@ -189,13 +195,13 @@ const TOWERS := {
 			{"name": "Counter", "cost": 400, "desc": "Each time it hurts itself, a shockwave deals 2 damage to balls in range.", "fx": [["=", "counter", 2]]},
 			{"name": "Mirror Coat", "cost": 1000, "desc": "Shockwaves deal 5, and it gets confused every 2s.", "fx": [["=", "counter", 5], ["=", "confuse", 2]]},
 			{"name": "Destiny Bond", "cost": 3000, "desc": "Shockwaves deal 12, and triple damage to Master Balls and the balloon.", "fx": [["=", "counter", 12], ["=", "bossMul", 3]]}]},
-	"mewtwo": {"name": "Mewtwo", "role": "Legendary powerhouse", "type": "Psychic", "cost": 3000,
+	"mewtwo": {"name": "Mewtwo", "role": "Legendary powerhouse", "type": "Psychic", "cost": 4500,
 		"blurb": "Expensive and extremely strong. Psychic blasts hit 3 balls at once, including hidden and Heavy ones.",
 		"base": {"range": 170, "rate": 0.5, "dmg": 3, "targets": 3, "bossMul": 1, "detect": true},
 		"A": [
 			{"name": "Mind Link", "cost": 1200, "desc": "+30 range and 20% faster.", "fx": [["+", "range", 30], ["*", "rate", 0.8]]},
 			{"name": "Battle Armor", "cost": 3500, "desc": "+3 damage and triple damage to Master Balls and the balloon.", "fx": [["+", "dmg", 3], ["=", "bossMul", 3]]},
-			{"name": "Mega Mewtwo Y", "cost": 9000, "desc": "Attacks twice as fast and hits 3 more balls.", "fx": [["*", "rate", 0.5], ["+", "targets", 3]]}],
+			{"name": "Mega Mewtwo Y", "cost": 10350, "desc": "Attacks twice as fast and hits 3 more balls.", "fx": [["*", "rate", 0.5], ["+", "targets", 3]]}],
 		"B": [
 			{"name": "Psychic", "cost": 1500, "desc": "+1 damage and hits 2 more balls.", "fx": [["+", "dmg", 1], ["+", "targets", 2]]},
 			{"name": "Psystrike", "cost": 4000, "desc": "Every 5s, deals 10 damage to every ball in range.", "fx": [["=", "psystrike", 5]]},
@@ -204,20 +210,20 @@ const TOWERS := {
 		"blurb": "Splash! But nothing happened. Evolve it into Gyarados and it becomes a monster.",
 		"base": {"range": 90, "rate": 1.5, "dmg": 0, "area": 0, "splash": true, "detect": false},
 		"A": [
-			{"name": "Evolve: Gyarados", "cost": 800, "desc": "Huge water blasts: 3 damage to every ball near the target.", "fx": [["+", "dmg", 3], ["=", "range", 140], ["=", "rate", 0.75], ["=", "area", 40], ["=", "splash", false]]},
+			{"name": "Evolve: Gyarados", "cost": 1100, "desc": "Huge water blasts: 3 damage to every ball near the target.", "fx": [["+", "dmg", 3], ["=", "range", 140], ["=", "rate", 0.75], ["=", "area", 40], ["=", "splash", false]]},
 			{"name": "Intimidate", "cost": 1100, "desc": "Balls in range move 30% slower.", "fx": [["=", "shadowTag", 0.7]]},
-			{"name": "Mega Gyarados", "cost": 4500, "desc": "+3 damage, 30% faster, bigger blasts, and sees Dusk Balls.", "fx": [["+", "dmg", 3], ["*", "rate", 0.7], ["+", "area", 20], ["=", "detect", true]]}],
+			{"name": "Mega Gyarados", "cost": 5200, "desc": "+3 damage, 30% faster, bigger blasts, and sees Dusk Balls.", "fx": [["+", "dmg", 3], ["*", "rate", 0.7], ["+", "area", 20], ["=", "detect", true]]}],
 		"B": [
 			{"name": "Tackle", "cost": 100, "desc": "Finally does 1 damage.", "fx": [["+", "dmg", 1], ["=", "splash", false]]},
 			{"name": "Flail", "cost": 600, "desc": "Up to +4 damage the lower Pikachu's HP is.", "fx": [["=", "flail", true]]},
 			{"name": "Bounce", "cost": 2200, "desc": "Every 4s, lands on the toughest ball in range for 20 damage, and 6 to balls next to it.", "fx": [["=", "bounce", 4]]}]},
 	"pidgey": {"name": "Pidgey", "type": "Flying", "cost": 300, "role": "Long-range sniper",
 		"blurb": "Gusts of wind from very far away. Great for covering a long stretch of path.",
-		"base": {"range": 230, "rate": 1.1, "dmg": 2, "pierce": 1, "push": 0, "brave": 0, "hurricane": 0, "detect": false},
+		"base": {"range": 175, "rate": 1.1, "dmg": 2, "pierce": 1, "push": 0, "brave": 0, "hurricane": 0, "detect": false},
 		"A": [
-			{"name": "Evolve: Pidgeotto", "cost": 450, "desc": "+40 range and sharp eyes that spot Dusk Balls.", "fx": [["+", "range", 40], ["=", "detect", true]]},
-			{"name": "Evolve: Pidgeot", "cost": 1300, "desc": "+1 damage, and each gust slices through 3 balls.", "fx": [["+", "dmg", 1], ["=", "pierce", 3]]},
-			{"name": "Mega Pidgeot", "cost": 4400, "desc": "+1 damage. Every 5s, Hurricane hits every ball in range for 6 and blows them back.", "fx": [["+", "dmg", 1], ["=", "hurricane", 5]]}],
+			{"name": "Evolve: Pidgeotto", "cost": 650, "desc": "+25 range and sharp eyes that spot Dusk Balls.", "fx": [["+", "range", 25], ["=", "detect", true]]},
+			{"name": "Evolve: Pidgeot", "cost": 1800, "desc": "+1 damage, and each gust slices through 3 balls.", "fx": [["+", "dmg", 1], ["=", "pierce", 3]]},
+			{"name": "Mega Pidgeot", "cost": 5050, "desc": "+1 damage. Every 5s, Hurricane hits every ball in range for 6 and blows them back.", "fx": [["+", "dmg", 1], ["=", "hurricane", 5]]}],
 		"B": [
 			{"name": "Gust", "cost": 300, "desc": "Each hit knocks the ball back a little.", "fx": [["=", "push", 12]]},
 			{"name": "Agility", "cost": 800, "desc": "Attacks 45% faster.", "fx": [["*", "rate", 0.55]]},
@@ -226,8 +232,8 @@ const TOWERS := {
 		"blurb": "Drops rocks on the path. Balls that roll over a rock take damage until it crumbles.",
 		"base": {"range": 110, "rate": 1.8, "dmg": 1, "rocks": 1, "rockUses": 5, "throw": 0, "quake": 0, "explode": 0, "armorBreak": false, "detect": true},
 		"A": [
-			{"name": "Evolve: Graveler", "cost": 550, "desc": "Drops 2 rocks at a time, and they last longer.", "fx": [["=", "rocks", 2], ["+", "rockUses", 2]]},
-			{"name": "Evolve: Golem", "cost": 1500, "desc": "+2 damage, and rocks crack Heavy Ball armour so Electric attacks work on them.", "fx": [["+", "dmg", 2], ["=", "armorBreak", true]]},
+			{"name": "Evolve: Graveler", "cost": 750, "desc": "Drops 2 rocks at a time, and they last longer.", "fx": [["=", "rocks", 2], ["+", "rockUses", 2]]},
+			{"name": "Evolve: Golem", "cost": 2100, "desc": "+2 damage, and rocks crack Heavy Ball armour so Electric attacks work on them.", "fx": [["+", "dmg", 2], ["=", "armorBreak", true]]},
 			{"name": "Explosion", "cost": 4000, "desc": "Every 8s, all its rocks blow up for 10 damage around them.", "fx": [["=", "explode", 8]]}],
 		"B": [
 			{"name": "Rock Throw", "cost": 400, "desc": "Also throws a rock at a ball for 2 damage.", "fx": [["=", "throw", 2]]},
@@ -237,9 +243,9 @@ const TOWERS := {
 		"blurb": "Close-range punches. Double damage to Heavy Balls, and knocks their armour off so Electric attacks work.",
 		"base": {"range": 90, "rate": 0.7, "dmg": 2, "targets": 1, "push": 0, "chi": 0, "armorBreak": true, "detect": false},
 		"A": [
-			{"name": "Evolve: Machoke", "cost": 550, "desc": "+1 damage and +10 range.", "fx": [["+", "dmg", 1], ["+", "range", 10]]},
-			{"name": "Evolve: Machamp", "cost": 1500, "desc": "+1 damage. Four arms punch 4 balls at once.", "fx": [["+", "dmg", 1], ["=", "targets", 4]]},
-			{"name": "Gigantamax Machamp", "cost": 4600, "desc": "+2 damage. Every 10s, nearby Pokémon attack twice as fast for 4s.", "fx": [["+", "dmg", 2], ["=", "chi", 10]]}],
+			{"name": "Evolve: Machoke", "cost": 750, "desc": "+1 damage and +10 range.", "fx": [["+", "dmg", 1], ["+", "range", 10]]},
+			{"name": "Evolve: Machamp", "cost": 2100, "desc": "+1 damage. Four arms punch 4 balls at once.", "fx": [["+", "dmg", 1], ["=", "targets", 4]]},
+			{"name": "Gigantamax Machamp", "cost": 5300, "desc": "+2 damage. Every 10s, nearby Pokémon attack twice as fast for 4s.", "fx": [["+", "dmg", 2], ["=", "chi", 10]]}],
 		"B": [
 			{"name": "Karate Chop", "cost": 350, "desc": "Attacks 25% faster.", "fx": [["*", "rate", 0.75]]},
 			{"name": "Cross Chop", "cost": 900, "desc": "+2 damage.", "fx": [["+", "dmg", 2]]},
@@ -248,9 +254,9 @@ const TOWERS := {
 		"blurb": "Barely attacks. Instead it makes the Pokémon around it stronger.",
 		"base": {"range": 120, "rate": 1.4, "dmg": 1, "auraRate": 1.0, "auraDmg": 0, "auraRange": 1.0, "auraDetect": false, "trick": 0, "detect": true},
 		"A": [
-			{"name": "Evolve: Kadabra", "cost": 600, "desc": "Pokémon in its range attack 15% faster.", "fx": [["=", "auraRate", 1.15]]},
-			{"name": "Evolve: Alakazam", "cost": 1800, "desc": "Pokémon in its range also deal +1 damage.", "fx": [["=", "auraDmg", 1]]},
-			{"name": "Mega Alakazam", "cost": 5000, "desc": "Pokémon in its range attack 30% faster, get 15% more range and see Dusk Balls.", "fx": [["=", "auraRate", 1.3], ["=", "auraRange", 1.15], ["=", "auraDetect", true]]}],
+			{"name": "Evolve: Kadabra", "cost": 850, "desc": "Pokémon in its range attack 15% faster.", "fx": [["=", "auraRate", 1.15]]},
+			{"name": "Evolve: Alakazam", "cost": 2500, "desc": "Pokémon in its range also deal +1 damage.", "fx": [["=", "auraDmg", 1]]},
+			{"name": "Mega Alakazam", "cost": 5750, "desc": "Pokémon in its range attack 30% faster, get 15% more range and see Dusk Balls.", "fx": [["=", "auraRate", 1.3], ["=", "auraRange", 1.15], ["=", "auraDetect", true]]}],
 		"B": [
 			{"name": "Calm Mind", "cost": 400, "desc": "Its own attack is twice as fast and +1 damage.", "fx": [["*", "rate", 0.5], ["+", "dmg", 1]]},
 			{"name": "Reflect", "cost": 900, "desc": "Balls in range move 30% slower.", "fx": [["=", "shadowTag", 0.7]]},
@@ -261,7 +267,7 @@ const TOWERS := {
 		"A": [
 			{"name": "Ice Beam", "cost": 500, "desc": "+1 damage and freezes for twice as long.", "fx": [["+", "dmg", 1], ["=", "freeze", 1.0]]},
 			{"name": "Blizzard", "cost": 1400, "desc": "+1 damage and freezes a much wider area around the target.", "fx": [["=", "area", 65], ["+", "dmg", 1]]},
-			{"name": "Gigantamax Lapras", "cost": 5200, "desc": "Every 12s, freezes every ball on the map for 2s.", "fx": [["=", "gfreeze", 12]]}],
+			{"name": "Gigantamax Lapras", "cost": 6000, "desc": "Every 12s, freezes every ball on the map for 2s.", "fx": [["=", "gfreeze", 12]]}],
 		"B": [
 			{"name": "Surf", "cost": 500, "desc": "Every 5s, a wave hits balls in range for 2 and pushes them back.", "fx": [["=", "surf", 5]]},
 			{"name": "Freeze-Dry", "cost": 1100, "desc": "Frozen balls take +2 damage from every attack.", "fx": [["=", "brittle", true]]},
@@ -272,7 +278,7 @@ const TOWERS := {
 		"A": [
 			{"name": "Thick Fat", "cost": 600, "desc": "Holds back balls more than twice as long.", "fx": [["=", "hold", 70]]},
 			{"name": "Rest", "cost": 1200, "desc": "Wakes back up in 3s instead of 6.", "fx": [["=", "recover", 3]]},
-			{"name": "Gigantamax Snorlax", "cost": 5000, "desc": "Holds 3 times longer still, and balls near it move 40% slower.", "fx": [["=", "hold", 200], ["=", "shadowTag", 0.6], ["=", "range", 80]]}],
+			{"name": "Gigantamax Snorlax", "cost": 5750, "desc": "Holds 3 times longer still, and balls near it move 40% slower.", "fx": [["=", "hold", 200], ["=", "shadowTag", 0.6], ["=", "range", 80]]}],
 		"B": [
 			{"name": "Body Slam", "cost": 500, "desc": "Every 1.2s, 2 damage to every ball next to it.", "fx": [["=", "slam", 1.2]]},
 			{"name": "Yawn", "cost": 900, "desc": "Every 3s, balls next to it fall asleep for 1s.", "fx": [["=", "yawn", 3]]},
@@ -281,8 +287,8 @@ const TOWERS := {
 		"blurb": "Dragon breath that hits Master Balls and the Meowth balloon twice as hard.",
 		"base": {"range": 140, "rate": 0.8, "dmg": 3, "bossMul": 2, "rage": 0, "dance": false, "outrage": 0, "hyper": 0, "detect": false},
 		"A": [
-			{"name": "Evolve: Dragonair", "cost": 700, "desc": "+2 damage and +20 range.", "fx": [["+", "dmg", 2], ["+", "range", 20]]},
-			{"name": "Evolve: Dragonite", "cost": 2000, "desc": "+2 damage, +30 range, and flies high enough to see Dusk Balls.", "fx": [["+", "dmg", 2], ["+", "range", 30], ["=", "detect", true]]},
+			{"name": "Evolve: Dragonair", "cost": 1000, "desc": "+2 damage and +20 range.", "fx": [["+", "dmg", 2], ["+", "range", 20]]},
+			{"name": "Evolve: Dragonite", "cost": 2800, "desc": "+2 damage, +30 range, and flies high enough to see Dusk Balls.", "fx": [["+", "dmg", 2], ["+", "range", 30], ["=", "detect", true]]},
 			{"name": "Outrage", "cost": 5500, "desc": "Every 15s, attacks 3 times as fast for 5s.", "fx": [["=", "outrage", 15]]}],
 		"B": [
 			{"name": "Dragon Rage", "cost": 800, "desc": "Every hit on a Master Ball or the balloon deals 20 extra.", "fx": [["=", "rage", 20]]},
@@ -292,7 +298,7 @@ const TOWERS := {
 		"blurb": "Swift stars hit 2 balls at once. Its first evolution is your choice: Vaporeon, Jolteon or Flareon.",
 		"base": EEVEE_BASE,
 		"A": [
-			{"name": "Evolve: your choice", "cost": 650, "desc": "Pick Vaporeon, Jolteon or Flareon. Each one plays differently.", "fx": []},
+			{"name": "Evolve: your choice", "cost": 900, "desc": "Pick Vaporeon, Jolteon or Flareon. Each one plays differently.", "fx": []},
 			{"name": "Second evolution move", "cost": 1500, "desc": "Depends on which evolution you picked.", "fx": []},
 			{"name": "Final evolution move", "cost": 4700, "desc": "Depends on which evolution you picked.", "fx": []}],
 		"B": EEVEE_B},
@@ -300,7 +306,7 @@ const TOWERS := {
 		"blurb": "Water stars soak balls so they roll slower, and Muddy Water washes them back.",
 		"base": EEVEE_BASE,
 		"A": [
-			{"name": "Evolve: Vaporeon", "cost": 650, "desc": "Water type. +1 damage, and balls hit move 40% slower for 1.5s.", "fx": [["+", "dmg", 1], ["=", "soak", true]]},
+			{"name": "Evolve: Vaporeon", "cost": 900, "desc": "Water type. +1 damage, and balls hit move 40% slower for 1.5s.", "fx": [["+", "dmg", 1], ["=", "soak", true]]},
 			{"name": "Muddy Water", "cost": 1500, "desc": "Every 4s, a wave hits every ball in range for 4 and pushes them back.", "fx": [["=", "muddy", 4]]},
 			{"name": "Hydro Steam", "cost": 4600, "desc": "+2 damage, hits 2 more balls, and Muddy Water hits for 8 more.", "fx": [["+", "dmg", 2], ["+", "targets", 2], ["+", "muddyDmg", 8]]}],
 		"B": EEVEE_B},
@@ -308,7 +314,7 @@ const TOWERS := {
 		"blurb": "Needle-fast Electric attacks. Heavy Balls ignore Electric unless their armour is knocked off.",
 		"base": EEVEE_BASE,
 		"A": [
-			{"name": "Evolve: Jolteon", "cost": 650, "desc": "Electric type. Attacks twice as fast, but can't hurt Heavy Balls.", "fx": [["*", "rate", 0.5]]},
+			{"name": "Evolve: Jolteon", "cost": 900, "desc": "Electric type. Attacks twice as fast, but can't hurt Heavy Balls.", "fx": [["*", "rate", 0.5]]},
 			{"name": "Pin Missile", "cost": 1400, "desc": "Each attack hits 3 more balls.", "fx": [["+", "targets", 3]]},
 			{"name": "Thunder Fang", "cost": 4800, "desc": "+2 damage. Every 6s, a bolt hits every ball in range for 8, even Heavy Balls.", "fx": [["+", "dmg", 2], ["=", "volt", 6]]}],
 		"B": EEVEE_B},
@@ -316,7 +322,7 @@ const TOWERS := {
 		"blurb": "Hard-hitting fire that burns, and later splashes onto balls next to the target.",
 		"base": EEVEE_BASE,
 		"A": [
-			{"name": "Evolve: Flareon", "cost": 650, "desc": "Fire type. +2 damage, and hits burn for 1 damage 3 times.", "fx": [["+", "dmg", 2], ["=", "burn", 3]]},
+			{"name": "Evolve: Flareon", "cost": 900, "desc": "Fire type. +2 damage, and hits burn for 1 damage 3 times.", "fx": [["+", "dmg", 2], ["=", "burn", 3]]},
 			{"name": "Lava Plume", "cost": 1500, "desc": "Each hit also scorches balls next to the target.", "fx": [["+", "area", 35]]},
 			{"name": "Flare Blitz", "cost": 4800, "desc": "+3 damage, and burns do double damage.", "fx": [["+", "dmg", 3], ["*", "burnMul", 2]]}],
 		"B": EEVEE_B},
@@ -331,24 +337,72 @@ const TOWERS := {
 			{"name": "Imposter", "cost": 500, "desc": "Also copies the first upgrade on the other Pokémon's second path, once it has it.", "fx": [["+", "copyB", 1]]},
 			{"name": "Imposter II", "cost": 1500, "desc": "Copies up to 2 upgrades on the second path.", "fx": [["+", "copyB", 1]]},
 			{"name": "Mirror Image", "cost": 4200, "desc": "Copies all 3 upgrades on the second path.", "fx": [["+", "copyB", 1]]}]},
-	"chansey": {"name": "Chansey", "type": "Normal", "cost": 550, "role": "Healer",
-		"blurb": "Soft-Boiled heals Pikachu after every wave, and it throws eggs at balls that come close.",
-		"base": {"range": 100, "rate": 1.3, "dmg": 1, "heal": 3, "eggArea": 0, "safeguard": 0, "toss": 0, "lucky": false, "detect": false},
+	"chansey": {"name": "Chansey", "type": "Normal", "cost": 650, "role": "Healer",
+		"blurb": "Soft-Boiled heals Pikachu after every wave. Helping Hand makes any Pikachu, Raichu or Gigantamax Pikachu in its range hit harder and faster.",
+		"base": {"range": 100, "rate": 1.4, "dmg": 1, "heal": 2, "eggArea": 0, "safeguard": 0, "toss": 0, "lucky": false, "help": 1, "detect": false},
 		"A": [
-			{"name": "Evolve: Blissey", "cost": 900, "desc": "+1 damage, and heals 5 more HP after every wave.", "fx": [["+", "dmg", 1], ["+", "heal", 5]]},
-			{"name": "Safeguard", "cost": 1800, "desc": "Every 12s, the next ball that reaches Pikachu bounces back to the start instead. Master Balls and the balloon can't be bounced.", "fx": [["=", "safeguard", 12]]},
-			{"name": "Healing Wish", "cost": 4500, "desc": "Heals 12 more HP after every wave, and Safeguard recharges twice as fast.", "fx": [["+", "heal", 12], ["*", "safeguard", 0.5]]}],
+			{"name": "Evolve: Blissey", "cost": 1250, "desc": "+1 damage, heals 3 more HP after every wave, and Helping Hand gives Pikachu +2 damage instead of +1.", "fx": [["+", "dmg", 1], ["+", "heal", 3], ["=", "help", 2]]},
+			{"name": "Safeguard", "cost": 2200, "desc": "Every 16s, the next ball that reaches Pikachu bounces back to the start instead. Master Balls and the balloon can't be bounced.", "fx": [["=", "safeguard", 16]]},
+			{"name": "Healing Wish", "cost": 5000, "desc": "Heals 7 more HP after every wave, and Safeguard recharges a third faster.", "fx": [["+", "heal", 7], ["*", "safeguard", 0.67]]}],
 		"B": [
 			{"name": "Egg Bomb", "cost": 400, "desc": "+1 damage, and eggs burst onto balls next to the target.", "fx": [["+", "dmg", 1], ["+", "eggArea", 35]]},
-			{"name": "Seismic Toss", "cost": 1100, "desc": "Every 3s, throws the toughest ball in range for 15 damage.", "fx": [["=", "toss", 3]]},
-			{"name": "Lucky Egg", "cost": 2600, "desc": "Every ball popped by a Pokémon in Chansey's range pays ₽1 extra.", "fx": [["=", "lucky", true]]}]},
+			{"name": "Seismic Toss", "cost": 1300, "desc": "Every 4s, throws the toughest ball in range for 12 damage.", "fx": [["=", "toss", 4]]},
+			{"name": "Lucky Egg", "cost": 3200, "desc": "Every ball popped by a Pokémon in Chansey's range pays ₽1 extra.", "fx": [["=", "lucky", true]]}]},
+	"clefairy": {"name": "Clefairy", "type": "Fairy", "cost": 400, "role": "Healer during waves",
+		"blurb": "Moonlight slowly heals Pikachu while a wave is on, and it can learn Flash to light up caves. Its Metronome does something random.",
+		"base": {"range": 105, "rate": 1.3, "dmg": 1, "moon": 10, "moonHeal": 1, "heal": 0, "sing": 0, "metronome": 0, "moonblast": 0, "detect": false},
+		"A": [
+			{"name": "Evolve: Clefable", "cost": 1300, "desc": "+1 damage, and Moonlight heals every 7s instead of every 10s.", "fx": [["+", "dmg", 1], ["=", "moon", 7]]},
+			{"name": "Wish", "cost": 1500, "desc": "Also heals 4 HP after every wave.", "fx": [["+", "heal", 4]]},
+			{"name": "Moonblast", "cost": 4400, "desc": "+2 damage. Every 5s, a moonbeam hits the toughest ball in range for 25.", "fx": [["+", "dmg", 2], ["=", "moonblast", 5]]}],
+		"B": [
+			{"name": "Sing", "cost": 450, "desc": "Every 6s, balls in range fall asleep for 1s. Master Balls never sleep.", "fx": [["=", "sing", 6]]},
+			{"name": "Metronome", "cost": 1100, "desc": "Every 5s, a random move: a thunderbolt, a fire blast, an ice freeze or a gust that blows balls back.", "fx": [["=", "metronome", 5]]},
+			{"name": "Life Dew", "cost": 2800, "desc": "Moonlight heals 2 HP at a time, and Metronome works every 3s.", "fx": [["=", "moonHeal", 2], ["=", "metronome", 3]]}]},
+	"togepi": {"name": "Togepi", "type": "Fairy", "cost": 375, "role": "Protector",
+		"blurb": "Heals Pikachu a little after every wave. Its moves shield Pikachu from leaks and cheer on the Pokémon around it.",
+		"base": {"range": 100, "rate": 1.3, "dmg": 1, "targets": 1, "heal": 2, "protect": 0.0, "pass": 1.0, "dazzle": 0, "detect": false},
+		"A": [
+			{"name": "Evolve: Togetic", "cost": 1000, "desc": "+1 damage, heals 2 more HP after every wave, and flies high enough to see Dusk Balls.", "fx": [["+", "dmg", 1], ["+", "heal", 2], ["=", "detect", true]]},
+			{"name": "Evolve: Togekiss", "cost": 2400, "desc": "+30 range, Air Slash hits 3 balls at once, and Pokémon in range attack 10% faster.", "fx": [["+", "range", 30], ["=", "targets", 3], ["=", "pass", 1.1]]},
+			{"name": "Dazzling Gleam", "cost": 4400, "desc": "+2 damage. Every 5s, 10 damage to every ball in range.", "fx": [["+", "dmg", 2], ["=", "dazzle", 5]]}],
+		"B": [
+			{"name": "Protect", "cost": 500, "desc": "Balls that reach Pikachu do 20% less damage. Several Togepi don't stack.", "fx": [["=", "protect", 0.2]]},
+			{"name": "Baton Pass", "cost": 1200, "desc": "Pokémon in its range attack 15% faster.", "fx": [["=", "pass", 1.15]]},
+			{"name": "Wish", "cost": 2800, "desc": "Protect blocks 35%, and heals 5 more HP after every wave.", "fx": [["=", "protect", 0.35], ["+", "heal", 5]]}]},
+	"caterpie": {"name": "Caterpie", "type": "Bug", "cost": 175, "role": "Cheap slower",
+		"blurb": "Cheap. String Shot sticks balls in silk so they roll slower. Evolves into Metapod, then Butterfree.",
+		"base": {"range": 100, "rate": 1.0, "dmg": 1, "targets": 1, "string": 0.75, "stringDur": 2.0, "para": 0, "befuddle": 0, "detect": false},
+		"A": [
+			{"name": "Evolve: Metapod", "cost": 500, "desc": "Harden! Stickier silk: String Shot slows balls by 45% instead of 25%. +10 range.", "fx": [["=", "string", 0.55], ["+", "range", 10]]},
+			{"name": "Evolve: Butterfree", "cost": 1600, "desc": "+1 damage, +20 range, Gust hits 2 balls at once, and flies high enough to see Dusk Balls.", "fx": [["+", "dmg", 1], ["+", "range", 20], ["=", "targets", 2], ["=", "detect", true]]},
+			{"name": "Gigantamax Butterfree", "cost": 4600, "desc": "Every 6s, G-Max Befuddle paralyses every ball in range for 1s and wraps them in silk.", "fx": [["=", "befuddle", 6]]}],
+		"B": [
+			{"name": "Stun Spore", "cost": 500, "desc": "Every 5s, paralyses every ball in range for 0.7s. Master Balls and the balloon resist.", "fx": [["=", "para", 5]]},
+			{"name": "Bug Bite", "cost": 900, "desc": "+1 damage, and String Shot lasts twice as long.", "fx": [["+", "dmg", 1], ["=", "stringDur", 4.0]]},
+			{"name": "Bug Buzz", "cost": 2600, "desc": "+2 damage, and each attack hits 2 more balls.", "fx": [["+", "dmg", 2], ["+", "targets", 2]]}]},
+	"growlithe": {"name": "Growlithe", "type": "Fire", "cost": 450, "role": "Fast fire dog",
+		"blurb": "Spits Embers that burn. Evolves into Arcanine, which eventually learns Extreme Speed and dashes through every ball in its range.",
+		"base": {"range": 105, "rate": 0.9, "dmg": 1, "burn": 2, "burnMul": 1, "area": 0, "espeed": 0, "heat": 0, "detect": false},
+		"A": [
+			{"name": "Evolve: Arcanine", "cost": 1800, "desc": "+2 damage, +20 range, and attacks 25% faster.", "fx": [["+", "dmg", 2], ["+", "range", 20], ["*", "rate", 0.75]]},
+			{"name": "Intimidate", "cost": 1200, "desc": "Balls in range move 25% slower.", "fx": [["=", "shadowTag", 0.75]]},
+			{"name": "Extreme Speed", "cost": 5200, "desc": "Attacks twice as fast. Every 4s, dashes along the path through its range, hitting every ball there for 12.", "fx": [["*", "rate", 0.5], ["=", "espeed", 4]]}],
+		"B": [
+			{"name": "Flamethrower", "cost": 450, "desc": "+15 range, and Embers burst onto balls next to the target. Can melt ice blocks.", "fx": [["+", "range", 15], ["=", "area", 30]]},
+			{"name": "Fire Fang", "cost": 1000, "desc": "+2 damage, and burns last twice as long.", "fx": [["+", "dmg", 2], ["=", "burn", 4]]},
+			{"name": "Heat Wave", "cost": 3000, "desc": "Every 5s, 8 damage to every ball in range, and they catch fire.", "fx": [["=", "heat", 5]]}]},
 }
-const KINDS := ["pikachu", "charmander", "squirtle", "bulbasaur", "gastly", "meowth", "wobbuffet", "magikarp", "pidgey", "geodude", "machop", "abra", "lapras", "snorlax", "dratini", "eevee", "ditto", "chansey", "mewtwo"]
+const KINDS := ["pikachu", "charmander", "squirtle", "bulbasaur", "gastly", "meowth", "wobbuffet", "magikarp", "pidgey", "geodude", "machop", "abra", "lapras", "snorlax", "dratini", "eevee", "ditto", "chansey", "clefairy", "togepi", "caterpie", "growlithe", "mewtwo"]
+
+## Pokémon whose healing is their main job, for the Pokédex.
+const HEALERS := ["chansey", "clefairy", "togepi"]
 
 const TYPE_COLORS := {
 	"Electric": "#f7d02c", "Fire": "#f08030", "Ghost": "#9a7ad6", "Water": "#5aa8f0",
 	"Grass": "#78c850", "Normal": "#d8cfa8", "Psychic": "#f37ab0", "Flying": "#a99cf0",
 	"Fighting": "#e0603c", "Ice": "#98d8e0", "Rock": "#c8b060", "Dragon": "#8a68f8",
+	"Bug": "#a8c030", "Fairy": "#f4a6d8",
 }
 
 ## Every stat a tower can have, so missing ones read as "off".
@@ -365,7 +419,11 @@ const STAT_DEFAULTS := {
 	"gfreeze": 0.0, "surf": 0.0, "brittle": false, "cold": 0.0, "hold": 0.0, "recover": 0.0, "slam": 0.0,
 	"slamDmg": 0.0, "yawn": 0.0, "rage": 0.0, "dance": false, "outrage": 0.0, "hyper": 0.0,
 	"soak": false, "muddy": 0.0, "muddyDmg": 0.0, "volt": 0.0, "resort": 0.0, "copyA": 0, "copyB": 0,
-	"heal": 0, "eggArea": 0.0, "safeguard": 0.0, "toss": 0.0, "lucky": false,
+	"heal": 0, "eggArea": 0.0, "safeguard": 0.0, "toss": 0.0, "lucky": false, "help": 0,
+	"moon": 0.0, "moonHeal": 0, "sing": 0.0, "metronome": 0.0, "moonblast": 0.0,
+	"protect": 0.0, "pass": 1.0, "dazzle": 0.0,
+	"string": 0.0, "stringDur": 0.0, "para": 0.0, "befuddle": 0.0,
+	"espeed": 0.0, "heat": 0.0,
 }
 
 const MAPS := [
@@ -375,35 +433,121 @@ const MAPS := [
 		"path": [[-40, 110], [200, 110], [200, 490], [420, 490], [420, 210], [640, 210], [640, 480], [850, 480], [850, -40]]},
 	{"id": "lavender", "name": "Lavender Town", "sub": "In the shadow of Pokémon Tower", "diff": "Hard", "lives": 75, "cash": 750, "theme": "lavender",
 		"path": [[480, -40], [480, 140], [190, 140], [190, 460], [760, 460], [760, 270], [1000, 270]]},
-	{"id": "mtmoon", "name": "Mt. Moon", "sub": "Short tunnels, no room for error", "diff": "Expert", "lives": 50, "cash": 750, "theme": "cave",
+	{"id": "mtmoon", "name": "Mt. Moon", "sub": "Short tunnels, no room for error", "diff": "Expert", "lives": 50, "cash": 750, "theme": "cave", "dark": true,
 		"path": [[-40, 300], [290, 300], [290, 120], [630, 120], [630, 470], [1000, 470]]},
 	{"id": "route12", "name": "Route 12", "sub": "A wild Snorlax is blocking the way", "diff": "Medium", "lives": 100, "cash": 750, "theme": "coast",
 		"path": [[-40, 520], [260, 520], [260, 300], [120, 300], [120, 90], [520, 90], [520, 410], [700, 410], [700, 160], [1000, 160]],
 		"water": [["rect", 780, -10, 200, 620], ["ell", 400, 515, 92, 50]]},
-	{"id": "rocktunnel", "name": "Rock Tunnel", "sub": "Pitch dark and packed with boulders", "diff": "Hard", "lives": 75, "cash": 750, "theme": "tunnel",
+	{"id": "rocktunnel", "name": "Rock Tunnel", "sub": "Pitch dark and packed with boulders", "diff": "Hard", "lives": 75, "cash": 750, "theme": "tunnel", "dark": true,
 		"path": [[-40, 80], [840, 80], [840, 240], [140, 240], [140, 400], [840, 400], [840, 540], [-40, 540]]},
 	{"id": "seafoam", "name": "Seafoam Islands", "sub": "Ice blocks and freezing currents", "diff": "Expert", "lives": 50, "cash": 750, "theme": "ice",
 		"path": [[-40, 150], [330, 150], [330, 470], [630, 470], [630, 130], [1000, 130]],
 		"water": [["ell", 480, 300, 96, 118], ["ell", 830, 400, 120, 105], ["ell", 120, 420, 105, 85]]},
 	{"id": "victory", "name": "Victory Road", "sub": "The last test before the League", "diff": "Expert", "lives": 40, "cash": 750, "theme": "victory",
 		"path": [[-40, 460], [220, 460], [220, 160], [480, 160], [480, 440], [740, 440], [740, 140], [1000, 140]]},
+	{"id": "diglett", "name": "Diglett's Cave", "sub": "A long dark tunnel. Bring a light", "diff": "Medium", "lives": 100, "cash": 750, "theme": "cave", "dark": true,
+		"path": [[-40, 500], [180, 500], [180, 120], [420, 120], [420, 400], [640, 400], [640, 100], [820, 100], [820, 480], [1000, 480]]},
+	{"id": "safari", "name": "Safari Zone", "sub": "Tall grass, ponds and rare Pokémon", "diff": "Medium", "lives": 100, "cash": 750, "theme": "safari",
+		"path": [[480, 640], [480, 470], [160, 470], [160, 150], [420, 150], [420, 320], [700, 320], [700, 110], [1000, 110]],
+		"water": [["ell", 285, 330, 62, 50], ["ell", 850, 450, 95, 85], ["ell", 580, 200, 55, 40]]},
+	{"id": "cinnabar", "name": "Cinnabar Volcano", "sub": "Lava pools. Fire Pokémon can stand in them", "diff": "Hard", "lives": 75, "cash": 750, "theme": "volcano",
+		"path": [[-40, 300], [220, 300], [220, 520], [700, 520], [700, 160], [300, 160], [300, -40]],
+		"lava": [["ell", 470, 340, 115, 65], ["ell", 110, 130, 85, 65], ["ell", 865, 450, 80, 110]]},
+	{"id": "cerulean", "name": "Cerulean Cave", "sub": "Pitch black and very dangerous", "diff": "Expert", "lives": 50, "cash": 750, "theme": "deepcave", "dark": true,
+		"path": [[1000, 90], [140, 90], [140, 510], [400, 510], [400, 250], [620, 250], [620, 510], [840, 510], [840, 260], [1000, 260]],
+		"water": [["ell", 290, 300, 68, 105], ["ell", 730, 385, 58, 70]]},
 ]
 
+## The order maps unlock in: beating a map (wave 40, any difficulty) opens the next.
+const MAP_ORDER := ["route1", "forest", "route12", "safari", "lavender", "diglett", "rocktunnel", "cinnabar", "mtmoon", "seafoam", "cerulean", "victory"]
+
+
+static func map_by_id(id: String):
+	for m in MAPS:
+		if m.id == id:
+			return m
+	return null
+
+
+static func map_beaten(id: String, best: Dictionary) -> bool:
+	for dk in DIFFS:
+		if int(best.get(best_key(id, dk), 0)) >= 40:
+			return true
+	return false
+
+
+static func map_played(id: String, best: Dictionary) -> bool:
+	for dk in DIFFS:
+		if best.has(best_key(id, dk)):
+			return true
+	return false
+
+
+## The map you have to beat first, or "" if this one is open. Maps you have
+## already played stay open, so older saves keep everything they had.
+static func map_needs(id: String, best: Dictionary) -> String:
+	var i := MAP_ORDER.find(id)
+	if i <= 0 or map_played(id, best):
+		return ""
+	var prev: String = MAP_ORDER[i - 1]
+	return "" if map_beaten(prev, best) else prev
+
 ## Things on a map that a Pokémon can clear away, freeing the spot for another
-## Pokémon. "by" lists who can do it (any evolution) and the move they use; one of
-## them has to be on the field. "find" is money sometimes found underneath.
+## Pokémon. "by" lists who can do it (any evolution) and the move they need; one
+## of them has to be close enough to reach it and know that move (see knows_move).
+## "find" is money sometimes found underneath.
 const OBSTACLES := {
 	"tree": {"name": "Tree", "cost": 60, "by": {"machop": "Strength", "bulbasaur": "Cut"}},
 	"pine": {"name": "Pine tree", "cost": 60, "by": {"machop": "Strength", "bulbasaur": "Cut"}},
-	"deadtree": {"name": "Dead tree", "cost": 40, "by": {"charmander": "Ember", "machop": "Strength", "bulbasaur": "Cut"}},
+	"deadtree": {"name": "Dead tree", "cost": 40, "by": {"charmander": "Ember", "growlithe": "Ember", "machop": "Strength", "bulbasaur": "Cut"}},
 	"rock": {"name": "Rock", "cost": 50, "by": {"geodude": "Rock Smash", "machop": "Rock Smash"}, "find": 150, "chance": .15, "note": "Sometimes hides a Nugget worth ₽150."},
 	"boulder": {"name": "Boulder", "cost": 120, "by": {"machop": "Strength"}, "note": "Too big for Rock Smash. Only Strength moves it."},
-	"ice": {"name": "Ice block", "cost": 80, "by": {"charmander": "Flamethrower"}, "note": "Only fire melts it."},
+	"ice": {"name": "Ice block", "cost": 80, "by": {"charmander": "Flamethrower", "growlithe": "Flamethrower"}, "note": "Only fire melts it."},
 	"sleeper": {"name": "Sleeping Snorlax", "cost": 200, "by": {"pikachu": "Thunder Shock"}, "find": 100, "chance": 1.0, "note": "A jolt wakes it up and it wanders off, dropping Leftovers worth ₽100."},
 }
 
+## Field moves a Pokémon can learn on the spot for a small fee (from its panel).
+## Moves not listed here come from its upgrades (Charmander's Flamethrower) or
+## are moves it always knows (INNATE).
+const HMS := {
+	"pikachu": {"Flash": 150},
+	"clefairy": {"Flash": 100},
+	"bulbasaur": {"Cut": 120},
+	"machop": {"Rock Smash": 100, "Strength": 200},
+	"geodude": {"Rock Smash": 80},
+}
+const HM_DESC := {
+	"Flash": "Lights up dark caves around it, so Pokémon close by can see properly.",
+	"Cut": "Cuts down trees in its range.",
+	"Rock Smash": "Breaks small rocks in its range.",
+	"Strength": "Shoves trees and boulders in its range out of the way.",
+}
+const INNATE := {"pikachu": ["Thunder Shock"], "charmander": ["Ember"], "growlithe": ["Ember"]}
+
+## Caves marked "dark": Pokémon outside any light only see this much of their range.
+const DARK_RANGE := 0.6
+## How far light reaches from a Pokémon that knows Flash, and from a Fire Pokémon.
+const FLASH_R := 175.0
+const FIRE_LIGHT_R := 70.0
+
+
+## Where a Pokémon gets this field move: "hm" (learn it), "upgrade" (buy that
+## upgrade), "innate" (always knows it) or "" (can't).
+static func move_source(kind: String, move: String) -> String:
+	if HMS.get(kind, {}).has(move):
+		return "hm"
+	if INNATE.get(kind, []).has(move):
+		return "innate"
+	for u in TOWERS[kind].A + TOWERS[kind].B:
+		if u.name == move:
+			return "upgrade"
+	return ""
+
+
 ## Pokémon that can stand in water. Everyone else needs dry land.
 const SWIMMERS := ["squirtle", "magikarp", "lapras"]
+## Pokémon that can stand in lava.
+const LAVA_WALKERS := ["charmander", "growlithe"]
 
 const DIFF_COLORS := {"Easy": "#5fd38a", "Medium": "#ffd23f", "Hard": "#ff9a4a", "Expert": "#ff6b6b"}
 
@@ -557,7 +701,8 @@ static func compute_stats(kind: String, a: int, b: int) -> Dictionary:
 const LOWER_BETTER := ["rate", "confuse", "recover", "shadowTag", "gmax", "blast", "hydro", "blizzard",
 	"powder", "solar", "goldRush", "encore", "psystrike", "future", "bounce", "hurricane", "explode",
 	"quake", "chi", "trick", "gfreeze", "surf", "cold", "slam", "yawn", "outrage", "hyper",
-	"muddy", "volt", "resort", "safeguard", "toss"]
+	"muddy", "volt", "resort", "safeguard", "toss", "moon", "sing", "metronome", "moonblast", "dazzle",
+	"string", "para", "befuddle", "espeed", "heat"]
 
 
 ## "=" never makes a stat worse, so evolutions and moves stack in any order
@@ -599,6 +744,10 @@ static func sprite_for(kind: String, a: int) -> String:
 		"snorlax": return "gmaxsnorlax" if a >= 3 else "snorlax"
 		"dratini": return ["dratini", "dragonair", "dragonite", "dragonite"][a]
 		"chansey": return "blissey" if a >= 1 else "chansey"
+		"clefairy": return "clefable" if a >= 1 else "clefairy"
+		"togepi": return ["togepi", "togetic", "togekiss", "togekiss"][a]
+		"caterpie": return ["caterpie", "metapod", "butterfree", "gmaxbutterfree"][a]
+		"growlithe": return "arcanine" if a >= 1 else "growlithe"
 	return kind
 
 

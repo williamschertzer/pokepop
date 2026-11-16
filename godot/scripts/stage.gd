@@ -21,6 +21,8 @@ var hit_pad := 0.0  # extra reach for fingers when the field is drawn small (pho
 
 var _bg_layer: Control
 var _fx_layer: Control
+var _dark: ColorRect  # darkness over caves, with holes where there is light
+var _top_layer: Control  # range circles, the placement ghost and floating text stay readable in the dark
 var _last_touch := -10000
 var _last_cd := {}  # tower id -> cooldown last frame, to spot when it attacks
 var _kick := {}  # tower id -> attack animation time left
@@ -41,6 +43,83 @@ func _init() -> void:
 	_fx_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fx_layer.draw.connect(_draw_world)
 	add_child(_fx_layer)
+	_dark = ColorRect.new()
+	_dark.size = Vector2(W, H)
+	_dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = DARK_SHADER
+	_dark.material = mat
+	_dark.visible = false
+	add_child(_dark)
+	_top_layer = Control.new()
+	_top_layer.size = Vector2(W, H)
+	_top_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_top_layer.draw.connect(_draw_top)
+	add_child(_top_layer)
+
+
+const MAX_LIGHTS := 40
+static var DARK_SHADER: Shader = _make_dark_shader()
+
+
+static func _make_dark_shader() -> Shader:
+	var sh := Shader.new()
+	sh.code = """
+shader_type canvas_item;
+uniform vec4 lights[40];
+uniform int count = 0;
+uniform float strength = 0.84;
+uniform vec2 field = vec2(960.0, 600.0);
+void fragment() {
+	vec2 p = UV * field;
+	float dark = strength;
+	for (int i = 0; i < 40; i++) {
+		if (i >= count) { break; }
+		vec4 l = lights[i];
+		float d = distance(p, l.xy);
+		float lit = 1.0 - smoothstep(l.z * 0.55, l.z, d);
+		dark *= 1.0 - lit * l.w;
+	}
+	COLOR = vec4(0.015, 0.012, 0.04, dark);
+}
+"""
+	return sh
+
+
+## Feeds the darkness shader the current lights: Flash, fire, and a faint glow
+## around every Pokémon, the start and Pikachu so you can still find them.
+func _update_dark() -> void:
+	var dark: bool = game != null and game.map != null and game.map.get("dark", false)
+	_dark.visible = dark
+	if not dark:
+		return
+	var ls: Array = []
+	var gt := game.t
+	for tw in game.towers:
+		if tw.hms.has("Flash"):
+			ls.append(Vector4(tw.x, tw.y, Data.FLASH_R * (1 + .02 * sin(gt * 3 + tw.id)), 1.0))
+		elif tw.type == "Fire":
+			ls.append(Vector4(tw.x, tw.y - 4, Data.FIRE_LIGHT_R * (1 + .06 * sin(gt * 9 + tw.id)), .95))
+		else:
+			ls.append(Vector4(tw.x, tw.y, 30, .55))
+	ls.append(Vector4(game.start_pt.x, game.start_pt.y, 60, .6))
+	ls.append(Vector4(game.end_pt.x, game.end_pt.y, 70, .9))
+	if placing != "" and ghost != null:
+		ls.append(Vector4(ghost.x, ghost.y, 30, .55))
+	for f in game.fx:
+		if f.kind in ["ring", "flame", "beam", "bolt"] and ls.size() < MAX_LIGHTS:
+			var k: float = f.life / f.max
+			if f.kind == "ring":
+				ls.append(Vector4(f.x, f.y, maxf(40, f.to), .5 * k))
+			elif f.kind == "flame":
+				ls.append(Vector4(f.x + cos(f.ang) * f.len * .5, f.y + sin(f.ang) * f.len * .5, f.len * .8, .8 * k))
+	for p in game.proj:
+		if p.kind == "ember" and ls.size() < MAX_LIGHTS:
+			ls.append(Vector4(p.x, p.y, 40, .7))
+	ls = ls.slice(0, MAX_LIGHTS)
+	var mat: ShaderMaterial = _dark.material
+	mat.set_shader_parameter("lights", ls)
+	mat.set_shader_parameter("count", ls.size())
 
 
 func refresh_bg() -> void:
@@ -53,7 +132,11 @@ func _process(_dt: float) -> void:
 		off = Vector2((randf() - .5) * game.shake, (randf() - .5) * game.shake)
 	_bg_layer.position = off
 	_fx_layer.position = off
+	_top_layer.position = off
+	_dark.position = off
 	_fx_layer.queue_redraw()
+	_top_layer.queue_redraw()
+	_update_dark()
 
 
 # ---------- input ----------
@@ -213,7 +296,19 @@ func _draw_ambience(ci: CanvasItem, theme: String, gt: float) -> void:
 				var x := fposmod(i * 251.0 + gt * 9, W)
 				var y := fposmod(H - gt * 14 - i * 150, H)
 				glow(ci, Vector2(x, y), 9, Color(.75, .6, 1, .45))
-		"cave":
+		"volcano":
+			for w in game.map.get("lava", []):
+				for i in 6:
+					var ph := fmod(gt * .7 + i * .37 + w[1] * .01, 1.0)
+					var bx: float = w[1] + cos(i * 2.4 + w[2]) * w[3] * .55
+					var by: float = w[2] + sin(i * 1.7 + w[1]) * w[4] * .5
+					var r := 2 + ph * 5
+					ci.draw_arc(Vector2(bx, by), r, 0, TAU, 16, Color(1, .85, .4, 1 - ph), 1.4, true)
+			for i in 10:
+				var x := fposmod(i * 97.0 + sin(gt * .5 + i) * 30, W)
+				var y := fposmod(H - gt * (14 + i % 3 * 6) - i * 63, H)
+				ci.draw_circle(Vector2(x, y), 1.4, Color(1, .6, .2, .7))
+		"cave", "deepcave":
 			for i in 12:
 				var x := fposmod(i * 211.0 + 37, W)
 				var y := fposmod(i * 131.0 + 53, H)
@@ -261,8 +356,6 @@ func _draw_world() -> void:
 		return
 	var g := game
 	var gt := g.t
-	if selected:
-		_show_range(ci, selected.x, selected.y, selected.s.range, true)
 	# Team Rocket start marker
 	var sp := g.start_pt
 	ci.draw_circle(sp, 15, Color("#1d1d24"))
@@ -299,14 +392,26 @@ func _draw_world() -> void:
 			ci.draw_polyline(PackedVector2Array([Vector2(b.x - 4, b.y - r + 2), Vector2(b.x, b.y - 4), Vector2(b.x - 2, b.y + 2), Vector2(b.x + 3, b.y + r - 3)]), Color("#16161a"), 1.4)
 		if b.def.get("regen", false) and b.hp < b.max_hp:
 			ci.draw_arc(Vector2(b.x, b.y), r + 4, -PI / 2, -PI / 2 + TAU * b.hp / b.max_hp, 24, Color("#ff8ab4"), 2, true)
-		if b.burn and randf() < .5:
-			g.parts.append({"x": b.x + (randf() - .5) * r, "y": b.y, "vx": 0.0, "vy": -40.0, "life": .25, "max": .25, "col": Color("#ff8a1f"), "size": 2.0})
+		if b.burn:
+			var fl := .7 + .3 * sin(gt * 23 + b.id)
+			glow(ci, Vector2(b.x, b.y - r * .4), r * 1.1 * fl, Color(1, .45, .1, .45))
+			if randf() < .45:
+				g.parts.append({"x": b.x + (randf() - .5) * r, "y": b.y - r * .3, "vx": (randf() - .5) * 12, "vy": -45.0, "life": .3, "max": .3, "col": Color("#ffb347") if randf() < .5 else Color("#ff6a1a"), "size": 2.4, "soft": true})
 		if def.get("boss", false):
 			var w := 46.0
 			ci.draw_rect(Rect2(b.x - w / 2, b.y - r - 12, w, 5), Color(0, 0, 0, .6))
 			ci.draw_rect(Rect2(b.x - w / 2, b.y - r - 12, w * clampf(b.hp / b.max_hp, 0, 1), 5), Color("#e85aa8"))
-		if b.slow < 1:
+		if b.web > 0:
+			for k in 3:
+				var a: float = k * 1.05 + b.id
+				ci.draw_line(Vector2(b.x, b.y) + Vector2.from_angle(a) * (r + 2), Vector2(b.x, b.y) - Vector2.from_angle(a) * (r + 2), Color(1, 1, 1, .75), 1.2, true)
+		elif b.slow < 1:
 			ci.draw_arc(Vector2(b.x, b.y), r + 2, 0, TAU, 32, Color(176 / 255.0, 122 / 255.0, 1, .6), 2, true)
+		if b.para > 0:
+			for k in 2:
+				var a: float = gt * 9 + k * PI + b.id
+				var p0: Vector2 = Vector2(b.x, b.y) + Vector2.from_angle(a) * (r + 1)
+				ci.draw_polyline(PackedVector2Array([p0, p0 + Vector2(3, -3), p0 + Vector2(1, 0), p0 + Vector2(5, -4)]), Color("#ffe066"), 1.6, true)
 	# Ash's Pikachu at the end of the route
 	var ep := g.end_pt
 	var al2 := g.alarm > 0
@@ -357,6 +462,8 @@ func _draw_world() -> void:
 			glow(ci, Vector2(tw.x, tw.y - 4), 26, Color(1, .45, .25, .35) if tw.rush > 0 else Color(.7, .5, 1, .4))
 		if tw.buffed:
 			glow(ci, Vector2(tw.x, tw.y + 12), 14, Color(1, .55, .85, .35 + .1 * sin(gt * 3 + tw.id)))
+		if tw.s.get("_helped", 0):
+			glow(ci, Vector2(tw.x, tw.y - 4), 20, Color(1, .75, .85, .3 + .1 * sin(gt * 4 + tw.id)))
 		if ditto_copy:
 			glow(ci, Vector2(tw.x, tw.y - 2), 24, Color(.75, .5, 1, .3 + .08 * sin(gt * 4 + tw.id)))
 		if tw.s.safeguard and tw.timers.get("sg", 0.0) <= 0:
@@ -408,6 +515,17 @@ func _draw_world() -> void:
 				ci.draw_set_transform_matrix(Transform2D.IDENTITY)
 			"coin":
 				Art.coin(ci, p.x, p.y, 5, p.ph)
+			"ember":
+				var r := 6.5 if p.big else 5.0
+				glow(ci, Vector2(p.x, p.y), r * 3, Color(1, .5, .1, .55))
+				ci.draw_circle(Vector2(p.x, p.y), r, Color("#ff6a1a"))
+				ci.draw_circle(Vector2(p.x - r * .2, p.y - r * .2), r * .62, Color("#ffc23a"))
+				ci.draw_circle(Vector2(p.x - r * .3, p.y - r * .3), r * .3, Color("#fff6c8"))
+				if randf() < .6:
+					g.parts.append({"x": p.x, "y": p.y, "vx": (randf() - .5) * 30, "vy": -20.0 - randf() * 30, "life": .25, "max": .25, "col": Color("#ff8a1f"), "size": 2.6, "soft": true})
+			"silk":
+				ci.draw_line(Vector2(p.sx, p.sy), Vector2(p.x, p.y), Color(1, 1, 1, .8), 1.3, true)
+				ci.draw_circle(Vector2(p.x, p.y), 2.6, Color("#ffffff"))
 			"egg":
 				ci.draw_set_transform(Vector2(p.x, p.y), p.rot, Vector2.ONE)
 				fill_ell(ci, 0, 0, 4, 5, Color("#fffaf0"))
@@ -517,18 +635,38 @@ func _draw_world() -> void:
 					line.append(Vector2(x, y) if i == 0 else Vector2(x + o, y - o))
 				ci.draw_polyline(line, col, 3, true)
 				ci.draw_arc(Vector2(f.x2, f.y2), 6 + k * 12, 0, TAU, 24, col, 3, true)
-			"text":
-				var col: Color = f.col
-				col.a = minf(1, f.life / f.max * 2)
-				var y: float = f.y - k * 22
-				var x: float = clampf(f.x, 110, W - 110)
-				text(ci, f.text, x, y - 4, 15 if f.get("big", false) else 12, col, false, 4, Color(16 / 255.0, 18 / 255.0, 40 / 255.0, .85 * col.a))
+			"flame":
+				_draw_flame(ci, f, k, gt)
+			"note":
+				var col := Color(1, .8, .95, 1 - k)
+				var p := Vector2(f.x + f.vx * k, f.y - 30 * k)
+				ci.draw_circle(p, 2.6, col)
+				ci.draw_line(p + Vector2(2.4, 0), p + Vector2(2.4, -9), col, 1.4, true)
+				ci.draw_line(p + Vector2(2.4, -9), p + Vector2(6, -7), col, 1.4, true)
+			"dash":
+				var pts: PackedVector2Array = f.pts
+				var a := 1 - k
+				ci.draw_polyline(pts, Color(1, .8, .3, .35 * a), 14, true)
+				ci.draw_polyline(pts, Color(1, .95, .7, .8 * a), 5, true)
+				ci.draw_polyline(pts, Color(1, 1, 1, a), 2, true)
+				var idx := clampi(int(k * 1.4 * (pts.size() - 1)), 0, pts.size() - 1)
+				if k < .72:
+					var nxt := pts[mini(idx + 1, pts.size() - 1)]
+					var cur := pts[idx]
+					for gi in 3:
+						var gp := pts[maxi(0, idx - gi * 3)]
+						Art.put_mon(ci, "arcanine", gp.x, gp.y - 6, .9, nxt.x < cur.x, gt, .9 - gi * .3)
 	for p in g.parts:
 		var a: float = p.life / p.max
 		var col: Color = p.col
 		col.a = a
 		var s: float = p.size * (1.6 - a) if p.get("grow", false) else p.size
-		if p.get("shard", false):
+		if p.get("soft", false):
+			var gc := col
+			gc.a = a * .5
+			glow(ci, Vector2(p.x, p.y), s * 2.6, gc)
+			ci.draw_circle(Vector2(p.x, p.y), s * .55, col)
+		elif p.get("shard", false):
 			# a curved piece of a popped Pokéball's shell, tumbling as it flies
 			var rot: float = (p.x + p.y) * .08 + a * 6
 			ci.draw_arc(Vector2(p.x, p.y), s * 1.4, rot, rot + 2.2, 6, col, s * .9, true)
@@ -542,20 +680,76 @@ func _draw_world() -> void:
 			continue
 		var k: float = 1 - m.life / m.max
 		dashed_circle(ci, Vector2(mb.x, mb.y), mb.def.r + 12 - k * 6, Color("#ff7ad9"), 2.5, 4, 4, -gt * 30)
+	_draw_ambience(ci, g.map.theme, gt)
+
+
+## Drawn above the cave darkness: ranges, the placement ghost, floating text.
+func _draw_top() -> void:
+	var ci := _top_layer
+	if not game or not game.map:
+		return
+	var g := game
+	var gt := g.t
+	if selected:
+		_show_range(ci, selected.x, selected.y, selected.s.range, true)
+		if selected.s.get("_dark", false):
+			text(ci, "Too dark to see far. Bring Flash or a Fire Pokémon close.", clampf(selected.x, 200, W - 200), clampf(selected.y + selected.s.range + 14, 20, H - 14), 12, Color("#ffe07a"), false, 4, Color(16 / 255.0, 18 / 255.0, 40 / 255.0, .85))
+		if selected.hms.has("Flash"):
+			dashed_circle(ci, Vector2(selected.x, selected.y), Data.FLASH_R, Color(1, .95, .6, .5), 1.5, 3, 7, gt * 10)
 	# placement preview
 	if placing != "" and ghost != null:
 		var valid = g.can_place(placing, ghost.x, ghost.y) and g.money >= Data.TOWERS[placing].cost
 		var gp: Vector2 = ghost
 		if Data.TOWERS[placing].get("onPath", false) and valid:
 			gp = MapArt.pos_at(g.path, g.path_d(ghost.x, ghost.y))
-		_show_range(ci, gp.x, gp.y, Data.TOWERS[placing].base.range, valid)
+		var rr: float = Data.TOWERS[placing].base.range
+		if g.map.get("dark", false) and not g.is_lit(gp.x, gp.y) and Data.TOWERS[placing].type != "Fire":
+			rr *= Data.DARK_RANGE
+		_show_range(ci, gp.x, gp.y, rr, valid)
 		Art.put_mon(ci, Data.sprite_for(placing, 0), gp.x, gp.y, 1, false, gt, .7)
-	_draw_ambience(ci, g.map.theme, gt)
+	for f in g.fx:
+		if f.kind == "text":
+			var k: float = 1 - f.life / f.max
+			var col: Color = f.col
+			col.a = minf(1, f.life / f.max * 2)
+			var y: float = f.y - k * 22
+			var x: float = clampf(f.x, 110, W - 110)
+			text(ci, f.text, x, y - 4, 15 if f.get("big", false) else 12, col, false, 4, Color(16 / 255.0, 18 / 255.0, 40 / 255.0, .85 * col.a))
 	for f in g.fx:
 		if f.kind == "leak":
 			ci.draw_rect(Rect2(0, 0, W, H), Color(1, 40 / 255.0, 40 / 255.0, .25 * f.life / f.max))
 	if g.paused:
 		ci.draw_rect(Rect2(0, 0, W, H), Color(10 / 255.0, 12 / 255.0, 30 / 255.0, .5))
+
+
+## Charmander's flames: flickering tongues of fire fanning out from its mouth,
+## with a hot white core, fading as they reach the end of the range.
+func _draw_flame(ci: CanvasItem, f: Dictionary, k: float, gt: float) -> void:
+	var o := Vector2(f.x, f.y)
+	var ang: float = f.ang
+	var cone: float = f.cone
+	var reach: float = f.len * minf(1, k * 3.2 + .35)
+	var fade := 1.0 - maxf(0, k - .35) / .65
+	var cols: Array = [Color("#2a7cff"), Color("#5cc8ff"), Color("#e6fbff")] if f.blue else [Color("#e83a10"), Color("#ff9a1f"), Color("#fff2a8")]
+	glow(ci, o + Vector2.from_angle(ang) * reach * .45, reach * .75, Color(cols[1], .35 * fade))
+	var n := 7
+	for layer in 3:
+		var lw: float = [1.0, .7, .38][layer]
+		var lr: float = [1.0, .8, .5][layer]
+		for i in n:
+			var side := (i - (n - 1) / 2.0) / ((n - 1) / 2.0)
+			var wob := sin(gt * 26 + i * 1.9 + f.seed) * .5 + sin(gt * 41 + i * 3.1) * .3
+			var a := ang + side * cone * .85 * lw + wob * .05
+			var L: float = reach * lr * (.78 + .22 * (.5 + .5 * sin(gt * 33 + i * 2.3 + f.seed)))
+			var tip := o + Vector2.from_angle(a) * L
+			var w: float = L * .2 * lw * (1.0 - absf(side) * .35)
+			var mid := o + Vector2.from_angle(a) * L * .55 + Vector2.from_angle(a + PI / 2) * wob * 3
+			var nrm := Vector2.from_angle(a + PI / 2)
+			var poly := PackedVector2Array([o + nrm * 2.5 * lw, mid + nrm * w, tip, mid - nrm * w, o - nrm * 2.5 * lw])
+			var col: Color = cols[layer]
+			col.a = (.55 if layer == 0 else .8) * fade
+			ci.draw_colored_polygon(poly, col)
+	glow(ci, o, 12 * fade + 4, Color(cols[2], .8 * fade))
 
 
 static func _draw_star(ci: CanvasItem, c: Vector2, r: float, col: Color, rot: float) -> void:

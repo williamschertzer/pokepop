@@ -25,6 +25,9 @@ const DRAW := {
 	"dratini": "dratini", "dragonair": "dragonair", "dragonite": "dragonite",
 	"eevee": "eevee", "vaporeon": "vaporeon", "jolteon": "jolteon", "flareon": "flareon",
 	"ditto": "ditto", "chansey": "chansey", "blissey": "blissey",
+	"clefairy": "clefairy", "clefable": "clefable", "togepi": "togepi", "togetic": "togetic", "togekiss": "togekiss",
+	"caterpie": "caterpie", "metapod": "metapod", "butterfree": "butterfree", "gmaxbutterfree": "gmax_butterfree",
+	"growlithe": "growlithe", "arcanine": "arcanine",
 }
 
 
@@ -1496,3 +1499,263 @@ static func blissey(c: Pen, t: float, _o := {}) -> void:
 	c.begin(); c.move_to(-3, -17); c.quad_to(0, -23, 3, -17); c.stroke(line, 1.2)
 	_egg_pouch(c, t, 1, line)
 	_chansey_face(c, -9, line)
+
+
+# ---------- Clefairy line ----------
+static func _clef_ear(c: Pen, x: float, y: float, rot: float, len: float, pk: String, line: String) -> void:
+	c.save(); c.translate(x, y); c.rotate(rot)
+	c.begin(); c.move_to(-4, 1); c.quad_to(-3, -len * .6, 0, -len); c.quad_to(3, -len * .6, 4, 1); c.close(); c.sh(pk, line, 1.2)
+	c.begin(); c.move_to(-1.6, -len * .62); c.quad_to(-1, -len * .85, 0, -len); c.quad_to(1, -len * .85, 1.6, -len * .62); c.close(); c.fill("#6a3a30")
+	c.restore()
+
+
+static func _clef(c: Pen, t: float, big: bool) -> void:
+	var pk := "#ffc2cf" if not big else "#ffb4c4"
+	var line := "#a0506a"
+	var k := 1.12 if big else 1.0
+	var flap := sin(t * 7) * .18
+	# little wings on its back
+	for s in [-1, 1]:
+		c.save(); c.translate(s * 9 * k, -2); c.rotate(s * (.5 + flap))
+		c.begin(); c.move_to(0, 0); c.bez_to(s * 6, -10, s * (14 if big else 9), -9, s * (13 if big else 9), -1); c.bez_to(s * 9, -2, s * 5, 3, 0, 0); c.close(); c.sh("#fff4f6", line, 1.1)
+		c.restore()
+	# curly tail
+	c.begin(); c.move_to(-9 * k, 12); c.bez_to(-18 * k, 12, -18 * k, 3, -13 * k, 4); limb(c, pk, 2.6)
+	for s in [-1, 1]:
+		c.ell(s * 5.4 * k, 17.6, 4.4 * k, 2.6); c.sh(pk, line, 1.1)
+		c.ell(s * 5.4 * k + s * 2, 18.4, 2, 1.4); c.fill("#7a4a3a")
+	c.begin(); c.move_to(0, -14 * k); c.bez_to(12 * k, -14 * k, 14 * k, 2, 12 * k, 10); c.bez_to(10 * k, 18, -10 * k, 18, -12 * k, 10); c.bez_to(-14 * k, 2, -12 * k, -14 * k, 0, -14 * k); c.close(); c.sh(pk, line, 1.3)
+	_clef_ear(c, -6 * k, -11 * k, -.35, 12 * k, pk, line); _clef_ear(c, 6 * k, -11 * k, .35, 12 * k, pk, line)
+	c.begin(); c.move_to(0, -14 * k); c.bez_to(12 * k, -14 * k, 14 * k, 2, 12 * k, 10); c.bez_to(10 * k, 18, -10 * k, 18, -12 * k, 10); c.bez_to(-14 * k, 2, -12 * k, -14 * k, 0, -14 * k); c.close(); c.sh(pk, line, 1.3)
+	# forehead curl(s)
+	for cx in ([-3.0, 3.0] if big else [0.0]):
+		c.begin(); c.move_to(cx, -13 * k); c.bez_to(cx - 1, -19 * k, cx + 5, -19 * k, cx + 4, -15 * k); c.quad_to(cx + 3, -13.5 * k, cx + 1.6, -14.6 * k); c.stroke(line, 1.6, true)
+	for s in [-1, 1]:
+		c.ell(s * 11 * k, 3, 2.4, 3.4, s * -.5); c.sh(pk, line, 1)
+	eye(c, -4.4, -4, 2.1, 2.6, "#3a1828"); eye(c, 4.4, -4, 2.1, 2.6, "#3a1828")
+	c.ell(-8.2, 0, 2, 1.2); c.fill(Color("#ff6a90", .5)); c.ell(8.2, 0, 2, 1.2); c.fill(Color("#ff6a90", .5))
+	c.begin(); c.move_to(-2, 1.5); c.quad_to(0, 3.6, 2, 1.5); c.stroke(line, 1.1, true)
+
+
+static func clefairy(c: Pen, t: float, _o := {}) -> void:
+	_clef(c, t, false)
+
+
+static func clefable(c: Pen, t: float, _o := {}) -> void:
+	_clef(c, t, true)
+
+
+# ---------- Togepi line ----------
+static func _toge_spikes(c: Pen, y: float, w: float, h: float, col: String) -> void:
+	for i in 5:
+		var x := (i - 2) * w * .42
+		var lean := (i - 2) * .9
+		c.poly([[x - w * .2, y + 2], [x + lean, y - h * (1.0 - absf(i - 2) * .18)], [x + w * .2, y + 2]]); c.sh(col, OUT, 1.1)
+
+
+static func _toge_face(c: Pen, y: float) -> void:
+	eye(c, -3.4, y, 1.6, 2.2); eye(c, 3.4, y, 1.6, 2.2)
+	c.begin(); c.move_to(-1.8, y + 3.4); c.quad_to(0, y + 5.4, 1.8, y + 3.4); c.stroke(OUT, 1.1, true)
+	c.ell(-6.4, y + 2.6, 1.6, 1); c.fill(Color("#ff8aa0", .55)); c.ell(6.4, y + 2.6, 1.6, 1); c.fill(Color("#ff8aa0", .55))
+
+
+static func _shell_marks(c: Pen, cx: float, cy: float, r: float) -> void:
+	for m in [[-.45, .1, "#e2453c"], [.35, -.05, "#3a7ad8"], [.05, .55, "#e2453c"], [-.1, -.35, "#3a7ad8"]]:
+		var x: float = cx + m[0] * r
+		var y: float = cy + m[1] * r
+		c.poly([[x - r * .14, y + r * .1], [x, y - r * .16], [x + r * .14, y + r * .1]]); c.fill(m[2])
+
+
+static func togepi(c: Pen, t: float, _o := {}) -> void:
+	var yel := "#fbe9a6"
+	var bob := sin(t * 3) * .5
+	for s in [-1, 1]:
+		c.ell(s * 5, 17.8, 3.6, 2.2); c.sh(yel)
+	c.ell(0, 9, 11.5, 10); c.sh("#fbfbf4")
+	c.save(); c.ell(0, 9, 11.5, 10); c.clip()
+	_shell_marks(c, 0, 10, 12)
+	c.restore()
+	for s in [-1, 1]:
+		c.ell(s * 10, 0 + bob, 2.6, 3.2, s * -.6); c.sh(yel)
+	_toge_spikes(c, -12 + bob, 10, 8, yel)
+	c.begin(); c.move_to(-9, 1)
+	for i in 9:
+		c.line_to(-9 + i * 2.25, 1 + (-2.6 if i % 2 else 0) + bob)
+	c.line_to(9, -4 + bob); c.bez_to(9, -14 + bob, -9, -14 + bob, -9, -4 + bob); c.close(); c.sh(yel)
+	_toge_face(c, -6 + bob)
+
+
+static func togetic(c: Pen, t: float, _o := {}) -> void:
+	var flap := sin(t * 8) * .25
+	for s in [-1, 1]:
+		c.save(); c.translate(s * 9, -2); c.rotate(s * (.3 + flap))
+		c.begin(); c.move_to(0, 0); c.bez_to(s * 6, -14, s * 16, -14, s * 18, -6); c.bez_to(s * 13, -6, s * 10, 0, 0, 4); c.close(); c.sh("#ffffff")
+		c.restore()
+	for s in [-1, 1]:
+		c.ell(s * 5, 17.8, 3.6, 2.4); c.sh("#fbfbf4")
+	c.begin(); c.move_to(0, -16); c.bez_to(11, -16, 13, 0, 11, 10); c.bez_to(9, 18, -9, 18, -11, 10); c.bez_to(-13, 0, -11, -16, 0, -16); c.close(); c.sh("#fbfbf4")
+	_toge_spikes(c, -14, 9, 7, "#fbfbf4")
+	c.save(); c.ell(0, 9, 8, 7); c.clip()
+	_shell_marks(c, 0, 9, 10)
+	c.restore()
+	for s in [-1, 1]:
+		c.ell(s * 10, 3, 2.4, 3.4, s * -.6); c.sh("#fbfbf4")
+	_toge_face(c, -6)
+
+
+static func togekiss(c: Pen, t: float, _o := {}) -> void:
+	var flap := sin(t * 5) * .14
+	var bob := sin(t * 2.5) * 1.2
+	c.save(); c.translate(0, bob)
+	for s in [-1, 1]:
+		c.save(); c.translate(s * 6, -2); c.rotate(s * (.15 + flap))
+		c.begin(); c.move_to(0, 0); c.bez_to(s * 10, -14, s * 24, -14, s * 30, -4); c.line_to(s * 25, -3); c.line_to(s * 27, 2); c.line_to(s * 20, 0); c.line_to(s * 20, 5); c.bez_to(s * 12, 4, s * 6, 6, 0, 6); c.close(); c.sh("#ffffff")
+		for k in 2:
+			var x: float = s * (12 + k * 7)
+			c.poly([[x - 2.4, -5], [x, -9], [x + 2.4, -5]]); c.fill("#e2453c" if k == 0 else "#3a7ad8")
+		c.restore()
+	# sleek body tapering to a tail
+	c.begin(); c.move_to(4, -14); c.bez_to(12, -12, 12, 4, 6, 10); c.bez_to(2, 14, -10, 16, -16, 12); c.bez_to(-8, 10, -8, 2, -4, -8); c.close(); c.sh("#fbfbf4")
+	c.save(); c.translate(3, -14)
+	_toge_spikes(c, 0, 8, 7, "#fbfbf4")
+	c.restore()
+	c.ell(3, -9, 8, 6.5); c.sh("#fbfbf4")
+	_toge_face(c, -9.5)
+	c.restore()
+
+
+# ---------- Caterpie line ----------
+static func caterpie(c: Pen, t: float, _o := {}) -> void:
+	var g := "#7cc443"
+	var wig := sin(t * 6)
+	c.begin(); c.move_to(4, -8); c.quad_to(2, -15, -2, -19); c.move_to(4, -8); c.quad_to(7, -15, 9, -19); limb(c, "#e2453c", 2.2)
+	for i in 4:
+		var x := -17.0 + i * 6.4
+		var y := 12.5 - i * .8 + (wig if i % 2 else -wig) * .7
+		c.ell(x, y, 6.2, 5.8); c.sh(g)
+		c.ell(x, y + 4, 3.8, 1.4); c.fill("#f4dc8a")
+		c.ell(x + 1, y - 2.4, 1.4, 1.4); c.fill("#e8d050")
+		c.ell(x, 18.4, 1.6, 1); c.fill("#3f7a2a")
+	c.ell(7, -1, 11, 10.5); c.sh(g)
+	c.ell(10, 5, 6.6, 3.8); c.sh("#f4dc8a", null)
+	c.ell(10, -3, 4.8, 5.2); c.fs("#f4dc8a", OUT, 1)
+	c.ell(10.8, -3, 3.4, 4); c.fill(INK)
+	c.ell(12, -4.6, 1.3, 1.5); c.fill("#fff")
+	c.begin(); c.move_to(14, 3.6); c.quad_to(16, 5.2, 17.6, 3.2); c.stroke(OUT, 1.1, true)
+
+
+static func metapod(c: Pen, t: float, _o := {}) -> void:
+	var g := "#6fbf4a"
+	c.save(); c.rotate(sin(t * 1.6) * .04)
+	c.begin(); c.move_to(-3, 18); c.bez_to(-16, 12, -14, -10, -2, -24); c.bez_to(4, -28, 12, -22, 12, -13); c.bez_to(10, -7, 4, -7, 5, -1); c.bez_to(11, 4, 12, 12, 6, 18); c.close(); c.sh(g)
+	for y in [0.0, 9.0]:
+		c.begin(); c.move_to(-12, y + 1); c.quad_to(-3, y + 5, 7, y); c.stroke(Color("#3f7a2a"), 1.3, true)
+	c.begin(); c.move_to(-1, -18); c.quad_to(-6, -12, -9, -4); c.stroke(Color(1, 1, 1, .35), 2, true)
+	c.begin(); c.move_to(1, -15); c.quad_to(6, -18.5, 10.5, -14.5); c.quad_to(6, -12, 1, -15); c.close(); c.fs("#fff", OUT, 1)
+	c.ell(6.8, -14.8, 1.6, 1.3); c.fill(INK)
+	c.restore()
+
+
+static func _butterfree(c: Pen, t: float, gmax: bool) -> void:
+	var flap := sin(t * 9) * .32
+	var k := 1.25 if gmax else 1.0
+	c.save(); c.translate(0, sin(t * 3) * 1.4)
+	for s in [-1, 1]:
+		c.save(); c.translate(s * 3, -6); c.rotate(s * flap)
+		c.begin(); c.move_to(0, 0); c.bez_to(s * 6 * k, -18 * k, s * 22 * k, -26 * k, s * 26 * k, -12 * k); c.bez_to(s * 26 * k, -4, s * 12 * k, 0, 0, 2); c.close()
+		if gmax:
+			c.sh("#ffe8f6")
+			c.save(); c.clip()
+			for i in 5:
+				c.ell(s * (6 + i * 4.4) * k, (-12 + (i % 2) * 5) * k, 4 * k, 3.4 * k); c.fill(["#ff8ad0", "#ffd23f", "#7ad8ff", "#b48aff", "#7be3a2"][i])
+			c.restore()
+			c.begin(); c.move_to(0, 0); c.bez_to(s * 6 * k, -18 * k, s * 22 * k, -26 * k, s * 26 * k, -12 * k); c.bez_to(s * 26 * k, -4, s * 12 * k, 0, 0, 2); c.close(); c.stroke(OUT, 1.4)
+		else:
+			c.sh("#f6f8ff")
+			c.begin(); c.move_to(s * 22 * k, -20 * k); c.bez_to(s * 27 * k, -16 * k, s * 27 * k, -8, s * 22 * k, -7); c.bez_to(s * 24 * k, -11, s * 24 * k, -16, s * 22 * k, -20 * k); c.close(); c.fill(INK)
+		c.begin(); c.move_to(0, 4); c.bez_to(s * 6, 14 * k, s * 15 * k, 14 * k, s * 15 * k, 7); c.bez_to(s * 12, 3, s * 6, 2, 0, 4); c.close(); c.sh("#ffd6f0" if gmax else "#f6f8ff")
+		c.restore()
+	for s in [-1, 1]:
+		c.begin(); c.move_to(s * 3, 10); c.line_to(s * 5, 16); c.stroke("#5a6ad0", 2, true)
+	c.ell(0, 2, 6, 9); c.sh("#5a6ad0")
+	c.begin(); c.move_to(1, -18); c.quad_to(3, -26, 8, -27); c.move_to(-1, -18); c.quad_to(-4, -25, -1, -28); c.stroke(OUT, 1.2, true)
+	c.ell(8, -27, 1.4, 1.4); c.fill(OUT); c.ell(-1, -28, 1.4, 1.4); c.fill(OUT)
+	c.ell(1, -12, 8, 7); c.sh("#5a6ad0")
+	for ex in [-2.6, 5.0]:
+		c.ell(ex, -12.6, 3.6, 4.2); c.fs("#e23a4a", OUT, 1)
+		c.ell(ex + .9, -14, 1.3, 1.4); c.fill(Color(1, 1, 1, .8))
+	c.begin(); c.move_to(1, -6.5); c.quad_to(3, -5, 5, -6.5); c.stroke("#fff", 1.2, true)
+	c.restore()
+
+
+static func butterfree(c: Pen, t: float, _o := {}) -> void:
+	_butterfree(c, t, false)
+
+
+static func gmax_butterfree(c: Pen, t: float, _o := {}) -> void:
+	c.glow(0, -8, 34, Color(1, .85, .5, .35))
+	_butterfree(c, t, true)
+
+
+# ---------- Growlithe line ----------
+static func _dog_ear(c: Pen, x: float, y: float, rot: float, col: String) -> void:
+	c.save(); c.translate(x, y); c.rotate(rot)
+	c.poly([[-3.6, 1], [0, -8], [3.6, 1]]); c.sh(col)
+	c.poly([[-1.6, 0], [0, -5], [1.6, 0]]); c.fill("#7a3a14")
+	c.restore()
+
+
+static func growlithe(c: Pen, t: float, _o := {}) -> void:
+	var o := "#f08a30"
+	var cream := "#f6e3b4"
+	var wag := sin(t * 9) * .3
+	c.save(); c.translate(-11, 5); c.rotate(-.7 + wag)
+	c.begin(); c.move_to(-2, 0); c.bez_to(-6, -6, -3, -14, 2, -16); c.bez_to(6, -12, 5, -5, 3, 0); c.close(); c.sh(cream)
+	c.restore()
+	c.ell(-8, 15, 3.4, 4); c.sh(o); c.ell(-3.5, 16, 3.4, 4); c.sh(o)
+	c.ell(-1, 7, 12, 8); c.sh(o)
+	for k in 3:
+		c.begin(); c.move_to(-9.0 + k * 4, .5); c.quad_to(-7.5 + k * 4, 4, -9.5 + k * 4, 7.5); c.stroke(INK, 1.7, true)
+	c.ell(5, 15.6, 3.4, 4.2); c.sh(o); c.ell(9.4, 15, 3.4, 4.2); c.sh(o)
+	c.ell(7, 5, 6, 6.5); c.sh(cream, null)
+	_dog_ear(c, 3.5, -13, -.35, o); _dog_ear(c, 11, -13.5, .25, o)
+	c.ell(8, -6, 9.5, 8.5); c.sh(o)
+	c.begin(); c.move_to(1, -12); c.quad_to(5, -20, 8.5, -13); c.quad_to(11.5, -20, 14.5, -11); c.quad_to(8, -9.5, 1, -12); c.close(); c.sh(cream)
+	c.ell(13.4, -2.4, 5.2, 3.8); c.sh(cream, null)
+	c.ell(18, -4, 1.7, 1.3); c.fill(INK)
+	eye(c, 10.4, -7.6, 1.9, 2.5)
+	c.begin(); c.move_to(2, -5); c.line_to(5.4, -3.6); c.move_to(2.4, -1.4); c.line_to(5.4, -.8); c.stroke(INK, 1.4, true)
+	c.begin(); c.move_to(13, .2); c.quad_to(15.4, 1.6, 17.6, 0); c.stroke(OUT, 1.1, true)
+
+
+static func arcanine(c: Pen, t: float, _o := {}) -> void:
+	var o := "#f0802a"
+	var cream := "#f6e3b4"
+	var wag := sin(t * 6) * .2
+	c.save(); c.translate(-15, 2); c.rotate(-.9 + wag)
+	c.begin(); c.move_to(-2, 0); c.bez_to(-9, -6, -6, -18, 2, -21); c.bez_to(9, -16, 7, -6, 4, 0); c.close(); c.sh(cream)
+	c.restore()
+	for x in [-12.0, -6.5]:
+		c.ell(x, 15.4, 4, 4.4); c.sh(o)
+		c.ell(x, 11, 4.4, 3); c.sh(cream, null)
+	c.begin(); c.move_to(-17, 4); c.bez_to(-16, -6, 4, -8, 10, 0); c.bez_to(14, 8, 6, 16, -4, 14); c.bez_to(-14, 14, -18, 10, -17, 4); c.close(); c.sh(o)
+	for k in 4:
+		c.begin(); c.move_to(-13.0 + k * 4, -2.5); c.quad_to(-11.5 + k * 4, 2, -13.5 + k * 4, 6); c.stroke(INK, 1.8, true)
+	for x in [6.0, 11.5]:
+		c.ell(x, 15.2, 4, 4.8); c.sh(o)
+		c.ell(x, 10.6, 4.6, 3); c.sh(cream, null)
+	# big cream mane
+	c.begin(); c.move_to(0, -14)
+	for i in 9:
+		var a := -2.4 + i * .5
+		var r := 14.0 if i % 2 else 11.0
+		c.line_to(9 + cos(a) * r, -3 + sin(a) * r * 1.05)
+	c.close(); c.sh(cream)
+	_dog_ear(c, 6, -19, -.35, o); _dog_ear(c, 14, -19.5, .25, o)
+	c.ell(11, -11, 8.6, 7.6); c.sh(o)
+	c.begin(); c.move_to(4, -16); c.quad_to(8, -24, 11.5, -17); c.quad_to(15, -24, 17.5, -15); c.quad_to(11, -14, 4, -16); c.close(); c.sh(cream)
+	c.ell(16.4, -7.6, 5, 3.6); c.sh(cream, null)
+	c.ell(20.8, -9, 1.7, 1.3); c.fill(INK)
+	eye_iris(c, 13, -12.4, 2.4, 1.8, "#3a2a1a", .8)
+	c.begin(); c.move_to(5, -10); c.line_to(8.4, -8.6); c.stroke(INK, 1.4, true)
+	c.begin(); c.move_to(15.6, -4.6); c.quad_to(18.2, -3.4, 20.4, -5); c.stroke(OUT, 1.1, true)
